@@ -52,4 +52,28 @@ let read_sexpr string = raise X_not_yet_implemented ;;
 
 let read_sexprs string = raise X_not_yet_implemented;;
   
+(* ------------------- Boolean Parser ------------------------------ *)
+
+let _sulamit_ =  (PC.char '#');;
+
+let _tParser_ = (PC.char 't');;
+
+let _fParser_= (PC.char 'f');;
+
+let _trueParser_ = PC.caten _sulamit_ _tParser_;;
+
+let _falseParser_= PC.caten _sulamit_ _fParser_;;
+
+let _booleanParser_ = PC.disj _trueParser_ _falseParser_
+                    
+(* ------------------------------------------------------------------ *)
+
+
+let _digit_ = PC.range '0' '9' ;;
+
+
+let _numberParser_ =
+  let _digits_ = PC.plus _digit_ in
+  PC.pack _digits_ (fun (ds) -> Number (int_of_string (list_to_string ds)));;
+    
 end;; (* struct Reader *)
