@@ -1,4 +1,6 @@
 
+
+
 (* reader.ml
  * A compiler from Scheme to x86/64
  *
@@ -51,45 +53,87 @@ let normalize_scheme_symbol str =
 let read_sexpr string = raise X_not_yet_implemented ;;
 
 let read_sexprs string = raise X_not_yet_implemented;;
-  
+
+
 (* ------------------- Boolean Parser ------------------------------ *)
 
 
-#use "pc.ml";;
+let _sulamit_ =  (PC.char '#');;
 let _tParser_ = (PC.char 't');;
 
 let _fParser_= (PC.char 'f');;
 
 let _trueParser_ =
-  let _sulamit_ =  (PC.char '#') in
   let _truep_ = PC.caten _sulamit_ _tParser_ in
   PC.pack _truep_ (fun(s,t) -> Bool(true));;
 
 let _falseParser_ =
-  let _sulamit_ =  (PC.char '#') in
   let _falsep_ = PC.caten _sulamit_ _fParser_ in
   PC.pack _falsep_ (fun(s,f) -> Bool(false));;
 
 let _booleanParser_ = PC.disj _trueParser_ _falseParser_;;
 
-PC.test_string _booleanParser_ "#t";;
-
-let _Sexpr_ = PC.disj
-                    
+         
 (* ------------------------------------------------------------------ *)
+(* ----------------------------- number ----------------------------- *)
 
-#use "pc.ml";;
-let _digit_ = PC.range '0' '9' ;;
-let _dot_ = PC.char '.';;
 
-let _integerParser_ =
-  let _digits_ = PC.plus _digit_ in
-  PC.pack _digits_ (fun (ds) -> Number (Int((int_of_string (list_to_string ds)))));;
 
-let _floatParser_=
-  let _digits_ = PC.plus _digit_ in
-  PC.pack _digits_ _dot_ _digits_ (fun (ds dot ds2) -> float_of_string ((list_to_string ds) ^ "." ^(list_to_string ds2))));;
+(* ------------------------------------------------------------------ *)
+(* ----------------------------- char ------------------------------- *)
 
-let _numberParser_ = PC.disj_list [_floatParser_ ; _integerParser_;];;
-    
+let _backslash_ = (PC.char '\\');;
+
+let _CharPrefix_ =  PC.caten _sulamit_  _backslash_;;
+
+let _x_ = (PC.char_ci 'x');;
+
+let _Lower_ = PC.range 'a' 'f';;
+let _Digit_ = PC.range '0' '9' ;;
+let _Capital_ = PC.range 'A' 'F';;
+
+let _HexDigit_ = PC.disj_list [_Digit_ ; _Lower_ ; _Capital_ ;];;
+
+
+let _HexChar_ =
+  let chars = PC.plus _HexDigit_ in
+  let zxchars = PC.caten _x_ chars in
+  PC.pack zxchars (fun (x,cl) -> Char(char_of_int((int_of_string(list_to_string('0'::'x'::cl))))));;
+
+
+let _NamedChar_ = raise X_not_yet_implemented;;
+
+let _graterThanSpace_ = PC.range ' ' '~';;
+
+let _VisibleSimpleChar_ = 
+  let prefixAndChar =  PC.caten _CharPrefix_ _graterThanSpace_ in
+  PC.pack prefixAndChar (fun (pc)-> Char(pc));;
+  
+let _Char_  = PC.disj_list [ _VisibleSimpleChar_ ; _NamedChar_ ; _HexChar_;];;
+
+(*-------------------- String --------------- *)
+
+let _merchaot_ = PC.char '"';;
+
+let _StringHexChar_ =
+  let Hexdigits = PC.plus _HexDigit_ in
+  let xhexa = PC.caten  _x_ Hexdigits in
+  let backxhexa = PC.caten _backslash_ xhexa in
+  PC.pack backxhexa (fun(s)->String(s));;
+
+let _StringMetaChar_=  raise X_not_yet_implemented;;
+ 
+
+
+
+let _StringLiteralChar_ = raise X_not_yet_implemented;;
+let _StringChar_ = PC.disj_list [_StringLiteralChar_ ; _StringMetaChar_ ; _StringHexChar_;];;
+
+let _String_ = 
+let kleeneString = PC.kleeneString _StringChar_ in
+let startmerchaot = PC.caten _merchaot_ kleeneString in
+let EndMerchaot = PC.caten startmerchaot _merchaot_ in
+PC.pack EndMerchaot (fun(s)-> String(s));;
+
+
 end;; (* struct Reader *)
