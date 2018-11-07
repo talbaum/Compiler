@@ -55,8 +55,8 @@ let read_sexprs string = raise X_not_yet_implemented;;
 
 (* ------------------- Boolean Parser ------------------------------ *)
 
-let _tchar_ = (PC.char 't');;
-let _fchar_= (PC.char 'f');;
+let _tchar_ = (PC.char_ci 't');;
+let _fchar_= (PC.char_ci 'f');;
 let _sulamit_ =  (PC.char '#');;
 let _trueParser_ =
   let _truep_ = PC.caten _sulamit_ _tchar_ in
@@ -67,11 +67,9 @@ let _falseParser_ =
   PC.pack _falsep_ (fun(s,f) -> Bool(false));;
 
 let _Boolean_ = PC.disj _trueParser_ _falseParser_;;
-
          
 (* ------------------------------------------------------------------ *)
 (* ----------------------------- number ----------------------------- *)
-
 
 let _Digit_ = PC.range '0' '9' ;;
 let _Natural_ = 
@@ -95,7 +93,28 @@ let _Float_=
         PC.pack _float_format_ (fun(n, (dot, n2)) -> match n , n2 with
        |Int(n),Int(n2) -> Float(float_of_string(string_of_int(n) ^ "." ^ string_of_int(n2)))
        | _ -> raise PC.X_no_match);;
-  PC.test_string _Float_ "-1.123";; 
+
+let _str_natural_ = PC.pack _Natural_ (fun(ds) -> match ds with
+    |Int(ds) -> (string_of_int(ds))
+    | _ -> raise PC.X_no_match);;
+let _dot_natural_ = PC.pack _str_natural_ (fun(str)-> ("." ^ str));;
+let _int_as_str_ = PC.pack _Integer_ (fun (num) -> match num with
+    |Int(num) -> (string_of_int(num))
+    | _ -> raise PC.X_no_match);;
+  
+  let _Float2_=
+      let _float_format_ = PC.caten _int_as_str_ _dot_natural_ in
+        PC.pack _float_format_ (fun(s1,s2) -> Float(float_of_string(s1 ^ s2)));;
+
+PC.trace_pc "Test" _Float_ ['1'; '.'; '0'];;
+PC.trace_pc "Test" _Float_  (string_to_list("0005.0129")) ;;
+
+PC.test_string _Float2_ "-1.123";; 
+PC.test_string _Float2_ "1.0" ;; (* miss .0 after the 1 *)
+PC.test_string _Float2_ "0005.0129" ;; (* miss 0 after the dot *)
+PC.test_string _Float2_ "501.100000000000000000000" ;; (* exception int of string *)
+PC.test_string _Float2_ "-0.0" ;; (* miss .0 after the 1 *)
+PC.test_string _Float2_ "-102.000000000000001" ;;(* shold be -102. instead of -102.1 *)
 
 let _HexPrefix_ = 
 let _sulamit_ = PC.char '#' in
@@ -119,6 +138,8 @@ let _dot_ = PC.char '.' in
 
  let _Number_ = PC.disj_list [_Float_; _Integer_; _HexFloat_; _HexInteger_;] ;;  
      *) 
+     let _Number_ = PC.disj_list [_Float_; _Integer_;] ;;
+
 
 (* ------------------------------------------------------------------ *)
 (* ----------------------------- char ------------------------------- *)
@@ -147,7 +168,26 @@ let _VisibleSimpleChar_ =
   let prefixAndChar =  PC.caten _CharPrefix_ _greaterThanSpace_ in
   PC.pack prefixAndChar (fun (p,c)-> Char(c));;
   
-let _Char_  = PC.disj_list [ _VisibleSimpleChar_ ; _NamedChar_ ; _HexChar_;];;
+(*let _Char_  = PC.disj_list [ _VisibleSimpleChar_ ; _NamedChar_ ; _HexChar_;];;*)
+  
+let _Char2_  = PC.disj_list [ _VisibleSimpleChar_ ; _HexChar_;];;
+
+(*working*)
+PC.test_string _Char2_ "#\\a" ;; 
+PC.test_string _Char2_ "#\\A";; 
+PC.test_string _Char2_ "#\\?";; 
+PC.test_string _Char2_ "#\\~";; 
+PC.test_string _Char2_ "#\\\\";; 
+
+(* not working*)
+PC.test_string _Char2_ "#\\x30";; 
+PC.test_string _Char2_ "#\\xa";; 
+PC.test_string _Char2_ "#\\tab";; 
+PC.test_string _Char2_ "#\\space";; 
+PC.test_string _Char2_ "#\\newline";; 
+
+
+
 
 (*-------------------- String --------------- *)
 (*
