@@ -63,7 +63,6 @@ let _trueParser_ =
   PC.pack _truep_ (fun(s,t) -> Bool(true));;
 
 let _falseParser_ =
-  let _sulamit_ =  (PC.char '#') in
   let _falsep_ = PC.caten _sulamit_ _fchar_ in
   PC.pack _falsep_ (fun(s,f) -> Bool(false));;
 
