@@ -141,7 +141,6 @@ let _dot_ = PC.char '.' in
      let _Number_ = PC.disj_list [_Float_; _Integer_;] ;;
 
 
-(* ------------------------------------------------------------------ *)
 (* ----------------------------- char ------------------------------- *)
 
 let _backslash_ = (PC.char '\\');;
@@ -159,38 +158,32 @@ let _HexChar_ =
   let zxchars = PC.caten _x_ chars in
   PC.pack zxchars (fun (x,cl) -> Char(char_of_int((int_of_string(list_to_string('0'::'x'::cl))))));;
 
+let _newline_ =  
+PC.pack (PC.word_ci "newline") (fun(x)-> Char(char_of_int (10)));;
+let _page_=PC.pack (PC.word_ci "page") (fun(x)-> Char(char_of_int (12))) ;;
+let _return_= PC.pack (PC.word_ci "return") (fun(x)-> Char(char_of_int (13)) );;
+let _space_= PC.pack (PC.word_ci "space") (fun(x)-> Char(char_of_int (32))) ;;
+let _tab_= PC.pack (PC.word_ci "tab") (fun(x)-> Char(char_of_int (9))) ;;
+let _nul_= PC.pack (PC.word_ci "nul") (fun(x)-> Char(char_of_int (0))) ;;
 
-let _NamedChar_ = raise X_not_yet_implemented;;
+let named = PC.disj_list[_newline_; _page_;_return_; _space_;_tab_; _nul_];;
 
-let _greaterThanSpace_ = PC.range ' ' '~';;
+let _NamedChar_  =
+  PC.pack named (fun(x)->x);;
+  
+
+let _greaterThanSpace_ = PC.range '!' '~';;
 
 let _VisibleSimpleChar_ = 
-  let prefixAndChar =  PC.caten _CharPrefix_ _greaterThanSpace_ in
-  PC.pack prefixAndChar (fun (p,c)-> Char(c));;
+  PC.pack _greaterThanSpace_ (fun (c)-> Char(c));;
   
-(*let _Char_  = PC.disj_list [ _VisibleSimpleChar_ ; _NamedChar_ ; _HexChar_;];;*)
-  
-let _Char2_  = PC.disj_list [ _VisibleSimpleChar_ ; _HexChar_;];;
-
-(*working*)
-PC.test_string _Char2_ "#\\a" ;; 
-PC.test_string _Char2_ "#\\A";; 
-PC.test_string _Char2_ "#\\?";; 
-PC.test_string _Char2_ "#\\~";; 
-PC.test_string _Char2_ "#\\\\";; 
-
-(* not working*)
-PC.test_string _Char2_ "#\\x30";; 
-PC.test_string _Char2_ "#\\xa";; 
-PC.test_string _Char2_ "#\\tab";; 
-PC.test_string _Char2_ "#\\space";; 
-PC.test_string _Char2_ "#\\newline";; 
+let _Char_  = 
+let chino = PC.caten _CharPrefix_  (PC.disj_list [_NamedChar_;  _HexChar_;_VisibleSimpleChar_;]) in
+PC.pack chino (fun(x,c)->c);;
 
 
+(*-------------------------------------- String ------------------------------------------- *)
 
-
-(*-------------------- String --------------- *)
-(*
 let _merchaot_ = PC.char '"';;
 
 let _StringHexChar_ =
@@ -208,6 +201,5 @@ let kleeneString = PC.kleeneString _StringChar_ in
 let startmerchaot = PC.caten _merchaot_ kleeneString in
 let EndMerchaot = PC.caten startmerchaot _merchaot_ in
 PC.pack EndMerchaot (fun(s)-> String(s));;
-*)
 
 end;; (* struct Reader *)
