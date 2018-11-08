@@ -1,4 +1,3 @@
-
 (* reader.ml
  * A compiler from Scheme to x86/64
  *
@@ -114,8 +113,6 @@ let _Hex_Natural_val_ =
   let _Digits_ = PC.plus _HexDigit_ in
   PC.pack _Digits_ (fun (digits) ->  list_to_string(digits)) ;;
 
-PC.test_string _Hex_Natural_val_ "ab";;
-
 let _Sign_hex_ = (PC.caten (PC.maybe (PC.one_of("+-")))_HexNatural_)
 
 let _HexInteger_ = 
@@ -140,7 +137,7 @@ let _dot_ = PC.char '.' in
       let _hex_float_format_ = PC.caten _HexIntegerval_ _dot_hex_natural_ in
         PC.pack _hex_float_format_ (fun(n, (dot, n2)) -> Number(Float(float_of_string(n ^ "." ^ n2)))) ;;
 
-
+PC.test_string _Number_ "1.2";;
 (* ----------------------------- char ------------------------------- *)
 
 let _backslash_ = (PC.char '\\');;
@@ -180,6 +177,7 @@ let _VisibleSimpleChar_ =
 let _Char_  = 
 let chino = PC.caten _CharPrefix_  (PC.disj_list [_NamedChar_;  _HexChar_;_VisibleSimpleChar_;]) in
 PC.pack chino (fun(x,c)->c);;
+
 
 (*-------------------------------------- String ------------------------------------------- *)
 
@@ -222,4 +220,3 @@ PC.test_string _String_ "\"\\n\\r\\"";;
 
 
 end;; (* struct Reader *)
-
