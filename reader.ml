@@ -251,11 +251,8 @@ let _Symbol_ =
 let poteah = PC.char '(';;
 let soger = PC.char ')';;
 let _nil_ = PC.caten poteah soger;;
-let rec _Sexp_ s = PC.disj_list[   _Boolean_;_Char_; _Number_; _String_; _Symbol_;_List_;] s
+let rec _Sexp_ s = PC.disj_list[   _Boolean_;_Char_; _Number_; _String_; _Symbol_;_List_;_Quoted_;_QuasiQuoted_;_Unquoted_;_UnquoteAndSpliced_;_Vector_;] s
 (* ;_List_;_DottedList_; _Vector_; _UnquoteAndSpliced_; _QuasiQuoted_;_Unquoted_;_Boolean_ ;_Char_; _Number_; _String_; _Symbol_;*)
-
-
-
 
 (*---------------------------- LIST --------------------------------------*)
 
@@ -265,63 +262,47 @@ let sogerPoteahAndContent =  PC.caten a soger in
 let packed =  PC.pack sogerPoteahAndContent (fun((x,lst_sexp),y)->List.fold_right (fun n1 n2 -> Pair(n1,n2)) lst_sexp Nil) in
 packed s
 
-and packed s = _List_ s;;
+(*---------------------------- Vector --------------------------------------*)
 
+and _Vector_ s = 
+let sulPoteah = PC.caten (PC.char '#') poteah in
+let a = PC.caten sulPoteah (PC.star _Sexp_) in
+let sogerPoteahAndContent =  PC.caten a soger in
+let packed =  PC.pack sogerPoteahAndContent (fun(((sulamit,p),lst_sexp),y)-> Vector(lst_sexp)) in
+packed s
 
 
 (*---------------------------- Quoted --------------------------------------*)
 
 and _Quoted_ s= 
-let ch = PC.pack (PC.char '\'') in 
-let prefix = PC.pack ch (fun(x)-> PC.caten x _Sexp_) in
-let packed = PC.pack prefix (fun(x,s)->Pair(Symbol("quote"), Pair(s, Nil))) in
+let prefix = (PC.caten (PC.char '\'') _Sexp_) in
+let packed = PC.pack  prefix (fun(x,s)->Pair(Symbol("quote"), Pair(s, Nil))) in
 packed s
+
+
+
 (*---------------------------- QuasiQuoted --------------------------------------*)
 and _QuasiQuoted_ s=
-let ch = PC.pack (PC.char '`') in   
-let prefix = PC.pack ch (fun(x)-> PC.caten x _Sexp_) in
+let prefix =  (PC.caten (PC.char '`') _Sexp_ ) in
 let packed = PC.pack prefix (fun(x,s)->Pair(Symbol("quasiquote"), Pair(s, Nil))) in
 packed s
 (*---------------------------- Unquoted --------------------------------------*)
 
 and _Unquoted_ s= 
-let ch = PC.pack (PC.char ',') in
-let prefix = PC.pack ch (fun(x)-> PC.caten x _Sexp_) in
-let packed = PC.pack prefix (fun(x,s)->Pair(Symbol("unquote"), Pair(s, Nil))) 
-packed s
-
-(*---------------------------- ⟨UnquoteAndSpliced⟩ --------------------------------------
-and _UnquoteAndSpliced_ s = 
-let ch = PC.pack (PC.word ",@") in
-let prefix = PC.pack ch (fun(x)-> PC.caten x _Sexp_) in
-let packed = PC.pack prefix (fun(x,s)->Pair(Symbol("unquote-splicing"), Pair(s, Nil))) in
-packed s
-*)
-
-
-
-(*
-dont notice this
-*)
-
-(* Our version to noa implementation
-and _Quoted_ s= 
-let prefix = PC.caten (PC.char '\'') _Sexp_ in
-let packed = PC.pack prefix (fun(x,s)->Pair(Symbol("quote"), Pair(s, Nil))) in
-packed s
-and _QuasiQuoted_ s=  
-let prefix = PC.caten (PC.char '`') _Sexp_ in
-let packed = PC.pack prefix (fun(x,s)->Pair(Symbol("quasiquote"), Pair(s, Nil))) in
-packed s
-and _Unquoted_ s= 
-let prefix = PC.caten (PC.char ',') _Sexp_ in
+let prefix = PC.caten (PC.char ',')  _Sexp_  in
 let packed = PC.pack prefix (fun(x,s)->Pair(Symbol("unquote"), Pair(s, Nil))) in
 packed s
-and _UnquoteAndSpliced_ s = 
-let prefix = PC.caten (PC.word ",@")  _Sexp_ in
+
+
+
+
+(*---------------------------- ⟨UnquoteAndSpliced⟩ --------------------------------------*)
+and _UnquoteAndSpliced_ s =
+let prefix = PC.caten (PC.word ",@")  _Sexp_  in
 let packed = PC.pack prefix (fun(x,s)->Pair(Symbol("unquote-splicing"), Pair(s, Nil))) in
-packed s;;
-*)
+packed s 
+
+and packed s = _UnquoteAndSpliced_ s;;
 
 
 
@@ -329,9 +310,6 @@ packed s;;
 
 and _DottedList_ = raise X_not_yet_implemented;;
 
-(*---------------------------- Vector --------------------------------------*)
-
-and _Vector_ = raise X_not_yet_implemented;;
 
 end;; (* struct Reader *)
 
