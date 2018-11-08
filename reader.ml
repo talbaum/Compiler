@@ -66,7 +66,6 @@ let _falseParser_ =
   PC.pack _falsep_ (fun(s,f) -> Bool(false));;
 
 let _Boolean_ = PC.disj _trueParser_ _falseParser_;;
-         
 (* ------------------------------------------------------------------ *)
 (* ----------------------------- number ----------------------------- *)
 
@@ -181,12 +180,14 @@ PC.pack chino (fun(x,c)->c);;
 (*-------------------------------------- String ------------------------------------------- *)
 
 
+
 let _StringHexChar_ =
   let _Hexdigits_ = PC.plus _HexDigit_ in
   let xhexa = PC.caten  _x_ _Hexdigits_ in
   let backxhexa = PC.caten _backslash_ xhexa in
-  PC.pack backxhexa (fun(backslash, (x, digits))->Char(char_of_int(int_of_string(list_to_string('0'::'x'::digits)))));;
-PC.test_string _StringHexChar_ ""
+  let nekuda = PC.caten backxhexa (PC.char ';') in
+  PC.pack nekuda (fun((backslash, (x, digits)),_)->(char_of_int(int_of_string(list_to_string('0'::'x'::digits)))));;
+
 
 (*let _backslash_ = (PC.char '\\');;*)
 let _backslash_ = (PC.char '\\');;
@@ -205,18 +206,18 @@ let third_disf = PC.disj meta2 second_disf;;
 let final = PC.disj meta1 third_disf;;
 
 let _StringMetaChar_=  PC.disj_list[meta1;meta2;meta3; meta4; meta5; meta6;];;
-let _StringChar_ = PC.disj_list [_StringMetaChar_ ;];;
 
-(*let _StringLiteralChar_ = raise X_not_yet_implemented;;
-*)
+let _StringLiteralChar_ = 
+PC.guard (PC.range (char_of_int 32) (char_of_int 127)) (fun(literal)-> (literal!='\\' && literal!='\"'));;
+
+let _StringChar_ = PC.disj_list [_StringMetaChar_ ;_StringHexChar_;_StringLiteralChar_;];;
 
 let _String_ = 
 let meta_merchaot1 =  PC.char '\"' in
-let meta_star = PC.star _StringMetaChar_ in
+let meta_star = PC.star _StringChar_  in
 let kleeneString = PC.caten meta_merchaot1 (PC.caten meta_star meta_merchaot1) in
 PC.pack kleeneString (fun(_, (s,_))-> String(list_to_string s));;
 
-PC.test_string _String_ "\"\\n\\r\"";;
 
 (*--------------Symbol----------------*)
 let _bang_ = PC.char '!';;
@@ -239,7 +240,7 @@ let _parsed_=
 let _capital_letters = PC.range 'A' 'Z' in
  PC.pack _capital_letters (fun (ch) -> lowercase_ascii ch);;
 
-let _SymbolChar_ = PC.disj_list [_parsed_; _capital_letters; _digit_chars_;_letters_;_bang_; _dollar_; _exp_; _kohavit_; _makaf_; _low_makaf_; _equal_; _plus_; _meshulash_open_; _meshulash_close_; _question_; _forward_slash_; _dots_;];;
+let _SymbolChar_ = PC.disj_list [_parsed_; _digit_chars_;_letters_;_bang_; _dollar_; _exp_; _kohavit_; _makaf_; _low_makaf_; _equal_; _plus_; _meshulash_open_; _meshulash_close_; _question_; _forward_slash_; _dots_;];;
 let _Symbol_ =
   let _SymbolChars_ = PC.plus _SymbolChar_ in
   PC.pack _SymbolChars_ (fun (chars) ->  Symbol(list_to_string chars));;
@@ -247,8 +248,26 @@ let _Symbol_ =
 
 (*-------------------------- SEXP ---------------------------------------*)
 
-let rec _Sexp_ s = PC.disj_list[ _QuasiQuoted_;_Unquoted_;_UnquoteAndSpliced_;] s
-(* _Boolean_ ;_Char_; _Number_; _String_; _Symbol_;_List_;_DottedList_; _Vector_; _UnquoteAndSpliced_*)
+let poteah = PC.char '(';;
+let soger = PC.char ')';;
+let _nil_ = PC.caten poteah soger;;
+let rec _Sexp_ s = PC.disj_list[   _Boolean_;_Char_; _Number_; _String_; _Symbol_;_List_;] s
+(* ;_List_;_DottedList_; _Vector_; _UnquoteAndSpliced_; _QuasiQuoted_;_Unquoted_;_Boolean_ ;_Char_; _Number_; _String_; _Symbol_;*)
+
+
+
+
+(*---------------------------- LIST --------------------------------------*)
+
+and _List_ s = 
+let a = PC.caten poteah (PC.star _Sexp_) in
+let sogerPoteahAndContent =  PC.caten a soger in
+let packed =  PC.pack sogerPoteahAndContent (fun((x,lst_sexp),y)->List.fold_right (fun n1 n2 -> Pair(n1,n2)) lst_sexp Nil) in
+packed s
+
+and packed s = _List_ s;;
+
+
 
 (*---------------------------- Quoted --------------------------------------*)
 
@@ -268,55 +287,43 @@ packed s
 and _Unquoted_ s= 
 let ch = PC.pack (PC.char ',') in
 let prefix = PC.pack ch (fun(x)-> PC.caten x _Sexp_) in
-let packed = PC.pack prefix (fun(x,s)->Pair(Symbol("unquote"), Pair(s, Nil))) in
+let packed = PC.pack prefix (fun(x,s)->Pair(Symbol("unquote"), Pair(s, Nil))) 
 packed s
 
-(*---------------------------- ⟨UnquoteAndSpliced⟩ --------------------------------------*)
+(*---------------------------- ⟨UnquoteAndSpliced⟩ --------------------------------------
 and _UnquoteAndSpliced_ s = 
 let ch = PC.pack (PC.word ",@") in
 let prefix = PC.pack ch (fun(x)-> PC.caten x _Sexp_) in
-let packed = PC.pack prefix (fun(x,s)->Pair(Symbol("unquote-splicing"), Pair(s, Nil))) 
+let packed = PC.pack prefix (fun(x,s)->Pair(Symbol("unquote-splicing"), Pair(s, Nil))) in
 packed s
+*)
 
 
-
-and _Sexp_ s = _UnquoteAndSpliced_ s;;
 
 (*
 dont notice this
 *)
 
 (* Our version to noa implementation
-
 and _Quoted_ s= 
 let prefix = PC.caten (PC.char '\'') _Sexp_ in
 let packed = PC.pack prefix (fun(x,s)->Pair(Symbol("quote"), Pair(s, Nil))) in
 packed s
-
 and _QuasiQuoted_ s=  
 let prefix = PC.caten (PC.char '`') _Sexp_ in
 let packed = PC.pack prefix (fun(x,s)->Pair(Symbol("quasiquote"), Pair(s, Nil))) in
 packed s
-
 and _Unquoted_ s= 
 let prefix = PC.caten (PC.char ',') _Sexp_ in
 let packed = PC.pack prefix (fun(x,s)->Pair(Symbol("unquote"), Pair(s, Nil))) in
 packed s
-
-
 and _UnquoteAndSpliced_ s = 
 let prefix = PC.caten (PC.word ",@")  _Sexp_ in
 let packed = PC.pack prefix (fun(x,s)->Pair(Symbol("unquote-splicing"), Pair(s, Nil))) in
 packed s;;
-
 *)
 
 
-
-
-(*---------------------------- LIST --------------------------------------*)
-
-and _List_ = raise X_not_yet_implemented;;
 
 (*---------------------------- Dotted LIST --------------------------------------*)
 
