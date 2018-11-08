@@ -181,11 +181,12 @@ PC.pack chino (fun(x,c)->c);;
 
 (*-------------------------------------- String ------------------------------------------- *)
 
+
 let _StringHexChar_ =
   let _Hexdigits_ = PC.plus _HexDigit_ in
   let xhexa = PC.caten  _x_ _Hexdigits_ in
   let backxhexa = PC.caten _backslash_ xhexa in
-  PC.pack backxhexa (fun(backslash, (x, digits))->String(list_to_string('0'::'x'::digits)));;
+  PC.pack backxhexa (fun(backslash, (x, digits))->Char(char_of_int(int_of_string(list_to_string('0'::'x'::digits)))));;
 
 
 (*let _backslash_ = (PC.char '\\');;*)
