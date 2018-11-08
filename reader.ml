@@ -244,4 +244,90 @@ let _Symbol_ =
   let _SymbolChars_ = PC.plus _SymbolChar_ in
   PC.pack _SymbolChars_ (fun (chars) ->  Symbol(list_to_string chars));;
 
+
+(*-------------------------- SEXP ---------------------------------------*)
+
+let rec _Sexp_ s = PC.disj_list[ _QuasiQuoted_;_Unquoted_;_UnquoteAndSpliced_;] s
+(* _Boolean_ ;_Char_; _Number_; _String_; _Symbol_;_List_;_DottedList_; _Vector_; _UnquoteAndSpliced_*)
+
+(*---------------------------- Quoted --------------------------------------*)
+
+and _Quoted_ s= 
+let ch = PC.pack (PC.char '\'') in 
+let prefix = PC.pack ch (fun(x)-> PC.caten x _Sexp_) in
+let packed = PC.pack prefix (fun(x,s)->Pair(Symbol("quote"), Pair(s, Nil))) in
+packed s
+(*---------------------------- QuasiQuoted --------------------------------------*)
+and _QuasiQuoted_ s=
+let ch = PC.pack (PC.char '`') in   
+let prefix = PC.pack ch (fun(x)-> PC.caten x _Sexp_) in
+let packed = PC.pack prefix (fun(x,s)->Pair(Symbol("quasiquote"), Pair(s, Nil))) in
+packed s
+(*---------------------------- Unquoted --------------------------------------*)
+
+and _Unquoted_ s= 
+let ch = PC.pack (PC.char ',') in
+let prefix = PC.pack ch (fun(x)-> PC.caten x _Sexp_) in
+let packed = PC.pack prefix (fun(x,s)->Pair(Symbol("unquote"), Pair(s, Nil))) in
+packed s
+
+(*---------------------------- ⟨UnquoteAndSpliced⟩ --------------------------------------*)
+and _UnquoteAndSpliced_ s = 
+let ch = PC.pack (PC.word ",@") in
+let prefix = PC.pack ch (fun(x)-> PC.caten x _Sexp_) in
+let packed = PC.pack prefix (fun(x,s)->Pair(Symbol("unquote-splicing"), Pair(s, Nil))) 
+packed s
+
+
+
+and _Sexp_ s = _UnquoteAndSpliced_ s;;
+
+(*
+dont notice this
+*)
+
+(* Our version to noa implementation
+
+and _Quoted_ s= 
+let prefix = PC.caten (PC.char '\'') _Sexp_ in
+let packed = PC.pack prefix (fun(x,s)->Pair(Symbol("quote"), Pair(s, Nil))) in
+packed s
+
+and _QuasiQuoted_ s=  
+let prefix = PC.caten (PC.char '`') _Sexp_ in
+let packed = PC.pack prefix (fun(x,s)->Pair(Symbol("quasiquote"), Pair(s, Nil))) in
+packed s
+
+and _Unquoted_ s= 
+let prefix = PC.caten (PC.char ',') _Sexp_ in
+let packed = PC.pack prefix (fun(x,s)->Pair(Symbol("unquote"), Pair(s, Nil))) in
+packed s
+
+
+and _UnquoteAndSpliced_ s = 
+let prefix = PC.caten (PC.word ",@")  _Sexp_ in
+let packed = PC.pack prefix (fun(x,s)->Pair(Symbol("unquote-splicing"), Pair(s, Nil))) in
+packed s;;
+
+*)
+
+
+
+
+(*---------------------------- LIST --------------------------------------*)
+
+and _List_ = raise X_not_yet_implemented;;
+
+(*---------------------------- Dotted LIST --------------------------------------*)
+
+and _DottedList_ = raise X_not_yet_implemented;;
+
+(*---------------------------- Vector --------------------------------------*)
+
+and _Vector_ = raise X_not_yet_implemented;;
+
+end;; (* struct Reader *)
+
+
+
 end;; (* struct Reader *)
