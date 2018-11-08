@@ -181,25 +181,63 @@ let _Char_  =
 let chino = PC.caten _CharPrefix_  (PC.disj_list [_NamedChar_;  _HexChar_;_VisibleSimpleChar_;]) in
 PC.pack chino (fun(x,c)->c);;
 
-
-(*-------------------------------------- String ------------------------------------------- *)
-
-let _merchaot_ = PC.char '"';;
+(* --------------------------- string ---------------------------------------------------------------*)
 
 let _StringHexChar_ =
   let _Hexdigits_ = PC.plus _HexDigit_ in
   let xhexa = PC.caten  _x_ _Hexdigits_ in
   let backxhexa = PC.caten _backslash_ xhexa in
-  PC.pack backxhexa (fun(backslash, (x, digits))->String(s));;
+  PC.pack backxhexa (fun(backslash, (x, digits))->String(list_to_string('0'::'x'::digits)));;
 
-let _StringMetaChar_=  raise X_not_yet_implemented;;
-let _StringLiteralChar_ = raise X_not_yet_implemented;;
-let _StringChar_ = PC.disj_list [_StringLiteralChar_ ; _StringMetaChar_ ; _StringHexChar_;];;
 
+(*let _backslash_ = (PC.char '\\');;*)
+let _backslash_ = (PC.char '\\');;
+
+let back = (PC.word_ci "\"");;
+let _merchaot_ = PC.word_ci "\"";;
+
+let meta1 = 
+PC.pack back (fun(x)-> String("\""));;
+
+
+
+
+let meta2 = 
+let geresh1 =  (PC.word_ci "\t") in 
+PC.pack geresh1 (fun(x)-> String("\t"));;
+(*let meta3 = 
+let geresh = PC.word_ci "\\f" in
+PC.pack geresh (fun(x)-> Char('\\f'));;*)
+let meta4 = 
+let geresh1 =  (PC.word_ci "\n") in 
+PC.pack geresh1 (fun(x)-> String("\n"));;
+
+let meta5 = 
+let geresh1 =  (PC.word_ci "\r") in 
+PC.pack geresh1 (fun(x)-> String("\r"));;
+
+let meta6 = 
+let geresh1 =  (PC.word_ci "\\") in 
+PC.pack geresh1 (fun(x)-> String("\\"));;
+
+
+
+let _StringMetaChar_=  PC.disj_list[meta1;meta2; meta4; meta5; meta6;];;
+
+
+let _StringChar_ = PC.disj_list [_StringMetaChar_ ; ];;
+
+(*let _StringLiteralChar_ = raise X_not_yet_implemented;;
+*)
 let _String_ = 
-let kleeneString = PC.kleeneString _StringChar_ in
-let startmerchaot = PC.caten _merchaot_ kleeneString in
-let EndMerchaot = PC.caten startmerchaot _merchaot_ in
-PC.pack EndMerchaot (fun(s)-> String(s));;
+let kleeneString = PC.star _StringMetaChar_ in
+let startmerchaot = PC.caten meta1 kleeneString in
+let endMerchaot = PC.caten startmerchaot meta1 in
+PC.pack endMerchaot (fun((_,s),_)-> s);;
+
+PC.test_string _String_ "\"\"";;
+PC.test_string _String_ "\"\\t\"";;
+PC.test_string _String_ "\"\\\\\"" ;;
+PC.test_string _String_ "\"\"" ;;
 
 end;; (* struct Reader *)
