@@ -71,7 +71,6 @@ let _Boolean_ = PC.disj _trueParser_ _falseParser_;;
 (* ----------------------------- number ----------------------------- *)
 
 let _Number_ = PC.disj_list [_HexFloat_;_Float_;_HexInteger_; _Integer_; ] ;;
-
 let _Digit_ = PC.range '0' '9' ;;
 let _Natural_ = 
   let _Digits_ = PC.plus _Digit_ in
@@ -137,7 +136,7 @@ let _dot_ = PC.char '.' in
       let _hex_float_format_ = PC.caten _HexIntegerval_ _dot_hex_natural_ in
         PC.pack _hex_float_format_ (fun(n, (dot, n2)) -> Number(Float(float_of_string(n ^ "." ^ n2)))) ;;
 
-PC.test_string _Number_ "1.2";;
+
 (* ----------------------------- char ------------------------------- *)
 
 let _backslash_ = (PC.char '\\');;
@@ -186,9 +185,8 @@ let _StringHexChar_ =
   let _Hexdigits_ = PC.plus _HexDigit_ in
   let xhexa = PC.caten  _x_ _Hexdigits_ in
   let backxhexa = PC.caten _backslash_ xhexa in
-  let nekuda = PC.caten backxhexa (PC.char ';') in
-  PC.pack nekuda (fun((backslash, (x, digits)),_)->(char_of_int(int_of_string(list_to_string('0'::'x'::digits)))));;
-
+  PC.pack backxhexa (fun(backslash, (x, digits))->Char(char_of_int(int_of_string(list_to_string('0'::'x'::digits)))));;
+PC.test_string _StringHexChar_ ""
 
 (*let _backslash_ = (PC.char '\\');;*)
 let _backslash_ = (PC.char '\\');;
@@ -207,25 +205,43 @@ let third_disf = PC.disj meta2 second_disf;;
 let final = PC.disj meta1 third_disf;;
 
 let _StringMetaChar_=  PC.disj_list[meta1;meta2;meta3; meta4; meta5; meta6;];;
+let _StringChar_ = PC.disj_list [_StringMetaChar_ ;];;
 
-let _StringLiteralChar_ = 
-PC.guard (PC.range (char_of_int 32) (char_of_int 127)) (fun(literal)-> (literal!='\\' && literal!='\"'));;
-
-let _StringChar_ = PC.disj_list [_StringMetaChar_ ;_StringHexChar_;_StringLiteralChar_;];;
+(*let _StringLiteralChar_ = raise X_not_yet_implemented;;
+*)
 
 let _String_ = 
 let meta_merchaot1 =  PC.char '\"' in
-let meta_star = PC.star _StringChar_  in
+let meta_star = PC.star _StringMetaChar_ in
 let kleeneString = PC.caten meta_merchaot1 (PC.caten meta_star meta_merchaot1) in
 PC.pack kleeneString (fun(_, (s,_))-> String(list_to_string s));;
 
-PC.test_string _String_ "\"\\xa;\"";;
-PC.test_string _String_ "\"\\x30;\"";;
-PC.test_string _String_ "\"\\\\\"";;
-PC.test_string _String_ "\"\\t\"";;
-PC.test_string _String_ "\"Hello\"";;
-PC.test_string _String_ "\"Hello World!\"";;
-PC.test_string _String_"\"Hello\\n World!\"";;
+PC.test_string _String_ "\"\\n\\r\"";;
 
+(*--------------Symbol----------------*)
+let _bang_ = PC.char '!';;
+let _dollar_ = PC.char '$';;
+let _exp_ = PC.char '^';;
+let _kohavit_ = PC.char '*';;
+let _makaf_ = PC.char '-';;
+let _low_makaf_ = PC.char '_';;
+let _equal_ = PC.char '=';;
+let _plus_ = PC.char '+';;
+let _meshulash_open_ = PC.char '<';;
+let _meshulash_close_ = PC.char '>';;
+let _question_ = PC.char '?';;
+let _forward_slash_ = PC.char '/';;
+let _dots_ = PC.char ':';;
+let _letters_ = PC.range_ci 'a' 'z';;
+let _digit_chars_ = PC.range '0' '9' ;;
+
+let _parsed_=
+let _capital_letters = PC.range 'A' 'Z' in
+ PC.pack _capital_letters (fun (ch) -> lowercase_ascii ch);;
+
+let _SymbolChar_ = PC.disj_list [_parsed_; _capital_letters; _digit_chars_;_letters_;_bang_; _dollar_; _exp_; _kohavit_; _makaf_; _low_makaf_; _equal_; _plus_; _meshulash_open_; _meshulash_close_; _question_; _forward_slash_; _dots_;];;
+let _Symbol_ =
+  let _SymbolChars_ = PC.plus _SymbolChar_ in
+  PC.pack _SymbolChars_ (fun (chars) ->  Symbol(list_to_string chars));;
 
 end;; (* struct Reader *)
