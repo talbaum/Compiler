@@ -186,7 +186,8 @@ let _StringHexChar_ =
   let _Hexdigits_ = PC.plus _HexDigit_ in
   let xhexa = PC.caten  _x_ _Hexdigits_ in
   let backxhexa = PC.caten _backslash_ xhexa in
-  PC.pack backxhexa (fun(backslash, (x, digits))->Char(char_of_int(int_of_string(list_to_string('0'::'x'::digits)))));;
+  let nekuda = PC.caten backxhexa (PC.char ';') in
+  PC.pack nekuda (fun((backslash, (x, digits)),_)->(char_of_int(int_of_string(list_to_string('0'::'x'::digits)))));;
 
 
 (*let _backslash_ = (PC.char '\\');;*)
@@ -206,18 +207,25 @@ let third_disf = PC.disj meta2 second_disf;;
 let final = PC.disj meta1 third_disf;;
 
 let _StringMetaChar_=  PC.disj_list[meta1;meta2;meta3; meta4; meta5; meta6;];;
-let _StringChar_ = PC.disj_list [_StringMetaChar_ ;];;
 
-(*let _StringLiteralChar_ = raise X_not_yet_implemented;;
-*)
+let _StringLiteralChar_ = 
+PC.guard (PC.range (char_of_int 32) (char_of_int 127)) (fun(literal)-> (literal!='\\' && literal!='\"'));;
+
+let _StringChar_ = PC.disj_list [_StringMetaChar_ ;_StringHexChar_;_StringLiteralChar_;];;
 
 let _String_ = 
 let meta_merchaot1 =  PC.char '\"' in
-let meta_star = PC.star _StringMetaChar_ in
+let meta_star = PC.star _StringChar_  in
 let kleeneString = PC.caten meta_merchaot1 (PC.caten meta_star meta_merchaot1) in
 PC.pack kleeneString (fun(_, (s,_))-> String(list_to_string s));;
 
-PC.test_string _String_ "\"\\n\\r\\"";;
+PC.test_string _String_ "\"\\xa;\"";;
+PC.test_string _String_ "\"\\x30;\"";;
+PC.test_string _String_ "\"\\\\\"";;
+PC.test_string _String_ "\"\\t\"";;
+PC.test_string _String_ "\"Hello\"";;
+PC.test_string _String_ "\"Hello World!\"";;
+PC.test_string _String_"\"Hello\\n World!\"";;
 
 
 end;; (* struct Reader *)
