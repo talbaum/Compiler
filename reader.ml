@@ -71,74 +71,74 @@ let _Boolean_ = PC.disj _trueParser_ _falseParser_;;
 (* ------------------------------------------------------------------ *)
 (* ----------------------------- number ----------------------------- *)
 
+let _Number_ = PC.disj_list [_HexFloat_;_Float_;_HexInteger_; _Integer_; ] ;;
+
 let _Digit_ = PC.range '0' '9' ;;
 let _Natural_ = 
   let _Digits_ = PC.plus _Digit_ in
-  PC.pack _Digits_ (fun (digits) -> Int (int_of_string(list_to_string digits)))
+  PC.pack _Digits_ (fun (digits) -> Int (int_of_string(list_to_string digits)));;
 
-let _Sign_ = (PC.caten (PC.maybe (PC.one_of("+-")))_Natural_)
+let _Natural_val_ = 
+  let _Digits_ = PC.plus _Digit_ in
+  PC.pack _Digits_ (fun (digits) ->  (list_to_string digits));;
+
+let _Sign_ = (PC.caten (PC.maybe (PC.one_of("+-")))_Natural_);;
 
 let _Integer_ = 
+      PC.pack _Integer_val_ (fun ( number) -> Number(Int(number)));; 
+
+let _Integer_val_ = 
       PC.pack _Sign_ (fun (sign, number) -> match sign, number with
-    |Some '+' , Int(number)->  Int(number)
-    |Some '-',  Int(number) ->  Int(number*(-1))
-    |None , Int (number) ->  Int(number)
-    | _ -> raise PC.X_no_match);;
-PC.test_string _Integer_ "-21";;
+    |Some '+' , Int(number)->  number
+    |Some '-',  Int(number) ->  number*(-1)
+    |_ , Int(number) -> number);;
 
 let _Float_=
   let _dot_ = PC.char '.' in
-    let _dot_natural_ = PC.caten _dot_ _Natural_ in
-      let _float_format_ = PC.caten _Integer_ _dot_natural_ in
-        PC.pack _float_format_ (fun(n, (dot, n2)) -> match n , n2 with
-       |Int(n),Int(n2) -> Float(float_of_string(string_of_int(n) ^ "." ^ string_of_int(n2)))
-       | _ -> raise PC.X_no_match);;
-
-let _str_natural_ = PC.pack _Natural_ (fun(ds) -> match ds with
-    |Int(ds) -> (string_of_int(ds))
-    | _ -> raise PC.X_no_match);;
-let _dot_natural_ = PC.pack _str_natural_ (fun(str)-> ("." ^ str));;
-let _int_as_str_ = PC.pack _Integer_ (fun (num) -> match num with
-    |Int(num) -> (string_of_int(num))
-    | _ -> raise PC.X_no_match);;
-  
-  let _Float2_=
-      let _float_format_ = PC.caten _int_as_str_ _dot_natural_ in
-        PC.pack _float_format_ (fun(s1,s2) -> Float(float_of_string(s1 ^ s2)));;
-
-PC.trace_pc "Test" _Float_ ['1'; '.'; '0'];;
-PC.trace_pc "Test" _Float_  (string_to_list("0005.0129")) ;;
-
-PC.test_string _Float2_ "-1.123";; 
-PC.test_string _Float2_ "1.0" ;; (* miss .0 after the 1 *)
-PC.test_string _Float2_ "0005.0129" ;; (* miss 0 after the dot *)
-PC.test_string _Float2_ "501.100000000000000000000" ;; (* exception int of string *)
-PC.test_string _Float2_ "-0.0" ;; (* miss .0 after the 1 *)
-PC.test_string _Float2_ "-102.000000000000001" ;;(* shold be -102. instead of -102.1 *)
+    let _dot_natural_ = PC.caten _dot_ _Natural_val_ in
+      let _float_format_ = PC.caten _Integer_val_ _dot_natural_ in
+        PC.pack _float_format_ (fun(n, (dot, n2)) -> Number(Float(float_of_string(string_of_int n ^ "." ^ n2))));;
 
 let _HexPrefix_ = 
-let _sulamit_ = PC.char '#' in
-let _x_ = PC.char 'x' in
-PC.caten _sulamit_ _x_;;
-(*
-let _HexDigit_ = PC.X_not_yet_implemented;;
-let _HexNatural_ = PC.plus _HexDigit_;;
-let _HexInteger_ = 
-let _hex_prefix_and_sign_ = PC.caten _HexPrefix_ _Sign_ in
+  let _sulamit_ = PC.char '#' in
+  let _x_ = PC.char 'x' in
+  PC.caten _sulamit_ _x_;;
+let _Lower_ = PC.range 'a' 'f';;
+let _Digit_ = PC.range '0' '9' ;;
+let _Capital_ = PC.range 'A' 'F';;
 
+let _HexDigit_ = PC.disj_list [_Digit_ ; _Lower_ ; _Capital_ ;];;
+let _HexNatural_ = PC.plus _HexDigit_;;
+
+let _Hex_Natural_val_ = 
+  let _Digits_ = PC.plus _HexDigit_ in
+  PC.pack _Digits_ (fun (digits) ->  list_to_string(digits)) ;;
+
+PC.test_string _Hex_Natural_val_ "ab";;
+
+let _Sign_hex_ = (PC.caten (PC.maybe (PC.one_of("+-")))_HexNatural_)
+
+let _HexInteger_ = 
+let _hex_integer_format_ = PC.caten _HexPrefix_ _Sign_hex_ in
+PC.pack _hex_integer_format_ (fun(((prefix1,prefix2),(sign,digits))) -> match sign with
+|None -> Number(Int((int_of_string(list_to_string('0' :: 'x'::digits))))) 
+| Some '-' ->  Number(Int((-1)*(int_of_string(list_to_string('0' :: 'x'::digits)))))
+| Some '+' ->   Number(Int((int_of_string(list_to_string('0' :: 'x'::digits))))) 
+| _ -> raise PC.X_no_match);;
+
+let _HexIntegerval_ = 
+let _hex_integer_format_ = PC.caten _HexPrefix_ _Sign_hex_ in
+PC.pack _hex_integer_format_ (fun(((prefix1,prefix2),(sign,digits))) -> match sign with
+|None -> list_to_string('0' :: 'x'::digits)
+| Some '-' -> (list_to_string('-'::'0' :: 'x'::digits))
+| Some '+' -> list_to_string('0' :: 'x'::digits)
+| _ -> raise PC.X_no_match);;
 
 let _HexFloat_ = 
 let _dot_ = PC.char '.' in
-    let _dot_hex_natural_ = PC.caten _dot_ _HexNatural_ in
-      let _hex_float_format_ = PC.caten _HexInteger_ _dot_hex_natural_ in
-        PC.pack _hex_float_format_ (fun(n, (dot, n2)) -> match n , n2 with
-       |Int(n),Int(n2) -> Float(float_of_string(string_of_int(n) ^ "." ^ string_of_int(n2)))
-       | _ -> raise PC.X_no_match);;
-   
-
- let _Number_ = PC.disj_list [_Float_; _Integer_; _HexFloat_; _HexInteger_;] ;;  
-     *) 
-     let _Number_ = PC.disj_list [_Float_; _Integer_;] ;;
+    let _dot_hex_natural_ = PC.caten _dot_ _Hex_Natural_val_ in
+      let _hex_float_format_ = PC.caten _HexIntegerval_ _dot_hex_natural_ in
+        PC.pack _hex_float_format_ (fun(n, (dot, n2)) -> Number(Float(float_of_string(n ^ "." ^ n2)))) ;;
 
 
 (* ----------------------------- char ------------------------------- *)
