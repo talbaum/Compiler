@@ -200,24 +200,36 @@ let _Char_ = _Space_wrapper_ _Char_no_space_;;
 
 (*-------------------------------------- String ------------------------------------------- *)
 
+
 let _StringHexChar_ =
   let _Hexdigits_ = PC.plus _HexDigit_ in
   let xhexa = PC.caten  _x_ _Hexdigits_ in
   let backxhexa = PC.caten _backslash_ xhexa in
   let nekuda = PC.caten backxhexa (PC.char ';') in
-  PC.pack nekuda (fun((backslash, (x, digits)),_)->(char_of_int(int_of_string(list_to_string('0'::'x'::digits)))));;
+  PC.pack nekuda (fun((backslash, (x, digits)),nekudapsik)->(char_of_int(int_of_string(list_to_string('0'::'x'::digits)))));;
 
 
-(*let _backslash_ = (PC.char '\\');;*)
 let _backslash_ = (PC.char '\\');;
 let _merchaot_ = PC.char '\"';;
 
-let meta1 = PC.pack (PC.word_ci "\\\"") (fun(_)-> '\"');;
-let meta2 = PC.pack (PC.word_ci "\\t") (fun(_)-> '\t');;
-let meta3 = PC.pack (PC.word_ci "\\f") (fun(_)-> '\012');;
-let meta4 = PC.pack (PC.word_ci "\\n") (fun(_)-> '\n');;
-let meta5 = PC.pack (PC.word_ci "\\r") (fun(_)-> '\r');;
-let meta6 = PC.pack (PC.word_ci "\\\\") (fun(_)-> ('\\'));;
+let meta1 =
+let word = (PC.word_ci "\\\"") in
+ PC.pack  word(fun(x)-> '\"');;
+let meta2 = 
+let word = (PC.word_ci "\\t") in
+PC.pack word (fun(x)-> '\t');;
+let meta3 = 
+let word = (PC.word_ci "\\f") in
+PC.pack word (fun(x)-> '\012');;
+let meta4 = 
+let word = (PC.word_ci "\\n") in
+PC.pack word (fun(x)-> '\n');;
+let meta5 = 
+let word= (PC.word_ci "\\r") in
+PC.pack  word(fun(x)-> '\r');;
+let meta6 = 
+let word = (PC.word_ci "\\\\") in
+PC.pack word (fun(x)-> ('\\'));;
 
 let first_disf = PC.disj meta5 meta6;;
 let second_disf = PC.disj meta4 first_disf;;
@@ -226,16 +238,15 @@ let final = PC.disj meta1 third_disf;;
 
 let _StringMetaChar_=  PC.disj_list[meta1;meta2;meta3; meta4; meta5; meta6;];;
 
-let _StringLiteralChar_ = 
-PC.guard (PC.range (char_of_int 32) (char_of_int 127)) (fun(literal)-> (literal!='\\' && literal!='\"'));;
+let _StringLiteralChar_ =
+let chars =  (PC.range (char_of_int 32) (char_of_int 127)) in
+PC.guard chars (fun(literal)-> ( literal!='\"') && literal!='\\');;
 
 let _StringChar_ = PC.disj_list [_StringMetaChar_ ;_StringHexChar_;_StringLiteralChar_;];;
 
 let _String_no_space_ = 
-let meta_merchaot1 =  PC.char '\"' in
-let meta_star = PC.star _StringChar_  in
-let kleeneString = PC.caten meta_merchaot1 (PC.caten meta_star meta_merchaot1) in
-PC.pack kleeneString (fun(_, (s,_))-> String(list_to_string s));;
+let kleeneString = PC.caten _merchaot_ (PC.caten (PC.star _StringChar_) _merchaot_) in
+PC.pack kleeneString (fun(x, (s,y))-> String(list_to_string s));;
 
 let _String_ = _Space_wrapper_ _String_no_space_;;
 
@@ -269,6 +280,14 @@ let _Symbol_no_space_ =
 
 let _Symbol_ = _Space_wrapper_ _Symbol_no_space_;;
 
+
+(*--------------------------------- 3 Dots ----------------------------------------*)
+
+let nt_close_all = PC.word "...";;
+let nt_open = PC.char '(';;
+let nt_close = PC.char ')';;
+
+
 (*-------------------------Spaces and comments---------------------------*)
 
 let _Comment_ = _Spaces_;;
@@ -291,6 +310,7 @@ and _compound_  s=
 let packed = PC.disj_list [_List_;_Vector_;_Quoted_;_QuasiQuoted_;_Unquoted_;_UnquoteAndSpliced_;] in
 packed s
 
+
 (*---------------------------- LIST --------------------------------------*)
 
 and _List_no_space_ s =
@@ -303,6 +323,8 @@ packed s
 and _List_ s = 
 let packed = _Space_wrapper_ _List_no_space_ in
 packed s
+
+
 
 (*---------------------------- Dotted LIST --------------------------------------*)
 and _DottedList_no_space_ s=
@@ -396,4 +418,4 @@ let _sceintific_notation_no_space_ = PC.disj _sceintific_notation_int_ _sceintif
 let _sceintific_notation_ = _Space_wrapper_ _sceintific_notation_no_space_;;
 
 
-end;;
+end;; (* struct Reader *)
