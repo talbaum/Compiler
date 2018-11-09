@@ -66,7 +66,7 @@ let _falseParser_ =
   PC.pack _falsep_ (fun(s,f) -> Bool(false));;
 
 let _Boolean_ = PC.disj _trueParser_ _falseParser_;;
-(* ------------------------------------------------------------------ *)
+
 (* ----------------------------- number ----------------------------- *)
 
 let _Number_ = PC.disj_list [_HexFloat_;_Float_;_HexInteger_; _Integer_; ] ;;
@@ -220,6 +220,7 @@ PC.pack kleeneString (fun(_, (s,_))-> String(list_to_string s));;
 PC.test_string _String_ "\"\"";;
 
 (*--------------Symbol----------------*)
+
 let _bang_ = PC.char '!';;
 let _dollar_ = PC.char '$';;
 let _exp_ = PC.char '^';;
@@ -246,6 +247,7 @@ let _Symbol_ =
   PC.pack _SymbolChars_ (fun (chars) ->  Symbol(list_to_string chars));;
 
 (*-------------------------Spaces and comments---------------------------*)
+
 let _Space_ = PC.nt_whitespace;;
 let _Spaces_ = PC.star _Space_ ;;
 let _Comment_ = raise PC.X_not_yet_implemented;;
@@ -318,7 +320,25 @@ packed s ;;
 
 (*--------------------------- Sceintific Notation ---------------------------------------*)
 
+let _Float_val_=
+  let _dot_ = PC.char '.' in
+    let _dot_natural_ = PC.caten _dot_ _Natural_val_ in
+      let _float_format_ = PC.caten _Integer_val_ _dot_natural_ in
+        PC.pack _float_format_ (fun(n, (dot, n2)) -> float_of_string(string_of_int n ^ "." ^ n2));;
 
+ 
+let _e_ = PC.char_ci 'e' ;;
+let _prefix_and_e_ = PC.caten _Integer_val_ _e_;;
+let _sceintific_format_int_ = PC.caten _prefix_and_e_ _Integer_val_;;
+let _sceintific_notation_int_ =
+PC.pack _sceintific_format_int_ (fun ((before,e),after)-> Number(Int(int_of_float((float_of_string (string_of_int before)) *. (10.0 **  float_of_string (string_of_int (after)))))));;
+
+let _Fprefix_and_e_ = PC.caten _Float_val_ _e_;;
+let _sceintific_format_float_ = PC.caten _Fprefix_and_e_ _Integer_val_;;
+let _sceintific_notation_float_ =
+PC.pack _sceintific_format_float_ (fun ((before,e),after)-> Number(Float(before *. (10.0 **   float_of_string (string_of_int (after))))));;
+
+let _sceintific_notation_ = PC.disj _sceintific_notation_int_ _sceintific_notation_float_ ;;
 
 
 
