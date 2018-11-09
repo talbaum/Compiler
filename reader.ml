@@ -217,7 +217,7 @@ let meta_merchaot1 =  PC.char '\"' in
 let meta_star = PC.star _StringChar_  in
 let kleeneString = PC.caten meta_merchaot1 (PC.caten meta_star meta_merchaot1) in
 PC.pack kleeneString (fun(_, (s,_))-> String(list_to_string s));;
-
+PC.test_string _String_ "\"\"";;
 
 (*--------------Symbol----------------*)
 let _bang_ = PC.char '!';;
@@ -245,22 +245,41 @@ let _Symbol_ =
   let _SymbolChars_ = PC.plus _SymbolChar_ in
   PC.pack _SymbolChars_ (fun (chars) ->  Symbol(list_to_string chars));;
 
+(*-------------------------Spaces and comments---------------------------*)
+let _Space_ = PC.nt_whitespace;;
+let _Spaces_ = PC.star _Space_ ;;
+let _Comment_ = raise PC.X_not_yet_implemented;;
+let _Skip_ = PC.disj _Spaces_ _Spaces_  ;;
 
-(*-------------------------- SEXP ---------------------------------------*)
 
-let poteah = PC.char '(';;
-let soger = PC.char ')';;
-let _nil_ = PC.caten poteah soger;;
-let rec _Sexp_ s = PC.disj_list[   _Boolean_;_Char_; _Number_; _String_; _Symbol_;_List_;_Quoted_;_QuasiQuoted_;_Unquoted_;_UnquoteAndSpliced_;_Vector_;] s
-(* ;_List_;_DottedList_; _Vector_; _UnquoteAndSpliced_; _QuasiQuoted_;_Unquoted_;_Boolean_ ;_Char_; _Number_; _String_; _Symbol_;*)
+let poteah = PC.char '(' ;;
+let soger = PC.char ')' ;;
+let _nil_ = 
+let a = PC.caten poteah (PC.caten _Skip_ soger) in
+PC.pack a (fun(s) -> Nil);;
+
+let _atoms_ = PC.disj_list[_Boolean_;_Char_; _Number_; _String_; _Symbol_;];;
+let rec _Sexp_ s = PC.disj_list[_atoms_;_compound_; ] s
+
+and _compound_  s= 
+let packed = PC.disj_list [_List_;_Vector_;_Quoted_;_QuasiQuoted_;_Unquoted_;] in
+packed s
 
 (*---------------------------- LIST --------------------------------------*)
-
-and _List_ s = 
+and _List_ s =
 let a = PC.caten poteah (PC.star _Sexp_) in
 let sogerPoteahAndContent =  PC.caten a soger in
 let packed =  PC.pack sogerPoteahAndContent (fun((x,lst_sexp),y)->List.fold_right (fun n1 n2 -> Pair(n1,n2)) lst_sexp Nil) in
 packed s
+
+(*---------------------------- Dotted LIST --------------------------------------*)
+and _DottedList_ s=
+let a = PC.caten (PC.caten poteah (PC.plus _Sexp_)) (PC.char '.') in
+let b = PC.caten a _Sexp_ in
+let sogerPoteahAndContent =  PC.caten b soger in
+let packed =  PC.pack sogerPoteahAndContent (fun((((p,lst_sexp),nekuda),sexp),soger)->List.fold_right (fun n1 n2 -> Pair(n1,n2)) lst_sexp sexp) in
+packed s
+
 
 (*---------------------------- Vector --------------------------------------*)
 
@@ -279,8 +298,6 @@ let prefix = (PC.caten (PC.char '\'') _Sexp_) in
 let packed = PC.pack  prefix (fun(x,s)->Pair(Symbol("quote"), Pair(s, Nil))) in
 packed s
 
-
-
 (*---------------------------- QuasiQuoted --------------------------------------*)
 and _QuasiQuoted_ s=
 let prefix =  (PC.caten (PC.char '`') _Sexp_ ) in
@@ -293,25 +310,15 @@ let prefix = PC.caten (PC.char ',')  _Sexp_  in
 let packed = PC.pack prefix (fun(x,s)->Pair(Symbol("unquote"), Pair(s, Nil))) in
 packed s
 
-
-
-
 (*---------------------------- ⟨UnquoteAndSpliced⟩ --------------------------------------*)
 and _UnquoteAndSpliced_ s =
 let prefix = PC.caten (PC.word ",@")  _Sexp_  in
 let packed = PC.pack prefix (fun(x,s)->Pair(Symbol("unquote-splicing"), Pair(s, Nil))) in
-packed s 
+packed s ;;
 
-and packed s = _UnquoteAndSpliced_ s;;
-
-
-
-(*---------------------------- Dotted LIST --------------------------------------*)
-
-and _DottedList_ = raise X_not_yet_implemented;;
+(*--------------------------- Sceintific Notation ---------------------------------------*)
 
 
-end;; (* struct Reader *)
 
 
 
