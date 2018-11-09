@@ -167,14 +167,15 @@ let _NamedChar_  =
   PC.pack named (fun(x)->x);;
   
 
-let _greaterThanSpace_ = PC.range '!' '~';;
+
+let _greaterThanSpace_ = (PC.range (char_of_int 32) (char_of_int 127));;
 
 let _VisibleSimpleChar_ = 
   PC.pack _greaterThanSpace_ (fun (c)-> Char(c));;
   
 let _Char_  = 
-let chino = PC.caten _CharPrefix_  (PC.disj_list [_NamedChar_;  _HexChar_;_VisibleSimpleChar_;]) in
-PC.pack chino (fun(x,c)->c);;
+let prefixAndChar = PC.caten _CharPrefix_  (PC.disj_list [_NamedChar_;  _HexChar_;_VisibleSimpleChar_;]) in
+PC.pack prefixAndChar (fun(x,c)->c);;
 
 
 (*-------------------------------------- String ------------------------------------------- *)
@@ -217,7 +218,6 @@ let meta_merchaot1 =  PC.char '\"' in
 let meta_star = PC.star _StringChar_  in
 let kleeneString = PC.caten meta_merchaot1 (PC.caten meta_star meta_merchaot1) in
 PC.pack kleeneString (fun(_, (s,_))-> String(list_to_string s));;
-PC.test_string _String_ "\"\"";;
 
 (*--------------Symbol----------------*)
 
@@ -256,6 +256,8 @@ let _Skip_ = PC.disj _Spaces_ _Spaces_  ;;
 
 let poteah = PC.char '(' ;;
 let soger = PC.char ')' ;;
+let squarePoteah = PC.char '[' ;;
+let squareSoger = PC.char ']' ;;
 let _nil_ = 
 let a = PC.caten poteah (PC.caten _Skip_ soger) in
 PC.pack a (fun(s) -> Nil);;
@@ -267,11 +269,14 @@ and _compound_  s=
 let packed = PC.disj_list [_List_;_Vector_;_Quoted_;_QuasiQuoted_;_Unquoted_;] in
 packed s
 
+
 (*---------------------------- LIST --------------------------------------*)
+
 and _List_ s =
-let a = PC.caten poteah (PC.star _Sexp_) in
-let sogerPoteahAndContent =  PC.caten a soger in
-let packed =  PC.pack sogerPoteahAndContent (fun((x,lst_sexp),y)->List.fold_right (fun n1 n2 -> Pair(n1,n2)) lst_sexp Nil) in
+let a = PC.caten (PC.caten poteah (PC.star _Sexp_)) soger in
+let b =  PC.caten (PC.caten squarePoteah (PC.star _Sexp_)) squareSoger in 
+let aORb = PC.disj a b in
+let packed =  PC.pack aORb (fun((x,lst_sexp),y)->List.fold_right (fun n1 n2 -> Pair(n1,n2))  lst_sexp Nil) in
 packed s
 
 (*---------------------------- Dotted LIST --------------------------------------*)
@@ -279,7 +284,11 @@ and _DottedList_ s=
 let a = PC.caten (PC.caten poteah (PC.plus _Sexp_)) (PC.char '.') in
 let b = PC.caten a _Sexp_ in
 let sogerPoteahAndContent =  PC.caten b soger in
-let packed =  PC.pack sogerPoteahAndContent (fun((((p,lst_sexp),nekuda),sexp),soger)->List.fold_right (fun n1 n2 -> Pair(n1,n2)) lst_sexp sexp) in
+let square_a = PC.caten (PC.caten squarePoteah (PC.plus _Sexp_)) (PC.char '.') in
+let square_b = PC.caten a _Sexp_ in
+let sogerPoteahAndContent1 =  PC.caten b squareSoger in
+let squareOrNot = PC.disj sogerPoteahAndContent sogerPoteahAndContent1 in
+let packed =  PC.pack squareOrNot (fun((((p,lst_sexp),nekuda),sexp),soger)->List.fold_right (fun n1 n2 -> Pair(n1,n2)) lst_sexp sexp) in
 packed s
 
 
