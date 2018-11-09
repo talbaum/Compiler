@@ -69,7 +69,7 @@ let _Boolean_ = PC.disj _trueParser_ _falseParser_;;
 
 (* ----------------------------- number ----------------------------- *)
 
-let _Number_ = PC.disj_list [_HexFloat_;_Float_;_HexInteger_; _Integer_; ] ;;
+
 let _Digit_ = PC.range '0' '9' ;;
 let _Natural_ = 
   let _Digits_ = PC.plus _Digit_ in
@@ -81,14 +81,15 @@ let _Natural_val_ =
 
 let _Sign_ = (PC.caten (PC.maybe (PC.one_of("+-")))_Natural_);;
 
-let _Integer_ = 
-      PC.pack _Integer_val_ (fun ( number) -> Number(Int(number)));; 
 
 let _Integer_val_ = 
       PC.pack _Sign_ (fun (sign, number) -> match sign, number with
     |Some '+' , Int(number)->  number
     |Some '-',  Int(number) ->  number*(-1)
     |_ , Int(number) -> number);;
+
+let _Integer_ = 
+      PC.pack _Integer_val_ (fun ( number) -> Number(Int(number)));; 
 
 let _Float_=
   let _dot_ = PC.char '.' in
@@ -135,7 +136,7 @@ let _dot_ = PC.char '.' in
       let _hex_float_format_ = PC.caten _HexIntegerval_ _dot_hex_natural_ in
         PC.pack _hex_float_format_ (fun(n, (dot, n2)) -> Number(Float(float_of_string(n ^ "." ^ n2)))) ;;
 
-
+let _Number_ = PC.disj_list [_HexFloat_;_Float_;_HexInteger_; _Integer_; ] ;;
 (* ----------------------------- char ------------------------------- *)
 
 let _backslash_ = (PC.char '\\');;
@@ -250,7 +251,7 @@ let _Symbol_ =
 
 let _Space_ = PC.nt_whitespace;;
 let _Spaces_ = PC.star _Space_ ;;
-let _Comment_ = raise PC.X_not_yet_implemented;;
+let _Comment_ = _Spaces_;;
 let _Skip_ = PC.disj _Spaces_ _Spaces_  ;;
 
 
@@ -348,7 +349,6 @@ let _sceintific_notation_float_ =
 PC.pack _sceintific_format_float_ (fun ((before,e),after)-> Number(Float(before *. (10.0 **   float_of_string (string_of_int (after))))));;
 
 let _sceintific_notation_ = PC.disj _sceintific_notation_int_ _sceintific_notation_float_ ;;
-
 
 
 end;; (* struct Reader *)
