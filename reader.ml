@@ -86,7 +86,8 @@ let _Integer_val_ =
       PC.pack _Sign_ (fun (sign, number) -> match sign, number with
     |Some '+' , Int(number)->  number
     |Some '-',  Int(number) ->  number*(-1)
-    |_ , Int(number) -> number);;
+    |_ , Int(number) -> number
+    |_,_ -> raise PC.X_no_match);;
 
 let _Integer_ = 
       PC.pack _Integer_val_ (fun ( number) -> Number(Int(number)));; 
@@ -286,8 +287,8 @@ let a = PC.caten (PC.caten poteah (PC.plus _Sexp_)) (PC.char '.') in
 let b = PC.caten a _Sexp_ in
 let sogerPoteahAndContent =  PC.caten b soger in
 let square_a = PC.caten (PC.caten squarePoteah (PC.plus _Sexp_)) (PC.char '.') in
-let square_b = PC.caten a _Sexp_ in
-let sogerPoteahAndContent1 =  PC.caten b squareSoger in
+let square_b = PC.caten square_a _Sexp_ in
+let sogerPoteahAndContent1 =  PC.caten square_b squareSoger in
 let squareOrNot = PC.disj sogerPoteahAndContent sogerPoteahAndContent1 in
 let packed =  PC.pack squareOrNot (fun((((p,lst_sexp),nekuda),sexp),soger)->List.fold_right (fun n1 n2 -> Pair(n1,n2)) lst_sexp sexp) in
 packed s
