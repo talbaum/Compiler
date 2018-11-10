@@ -49,30 +49,6 @@ let normalize_scheme_symbol str =
 
 
 
-(*-------------------------Spaces and comments---------------------------*)
-
-(*
-let _Spaces_ =
- let a =PC.star _Space_ in 
- PC.pack a (fun (x) -> []);;
-*)
-(*
-let _not_psikuda_ = 
-  let a =(PC.range (char_of_int 32) (char_of_int 127)) in
-  PC.guard a (fun(literal)-> ( literal!=';'));;
-
-let _many_not_psikuda_ = PC.star _not_psikuda_;;
-let _comment_start_ =  PC.caten _many_not_psikuda_ _psikuda_;;
-
-
-
-
-let _Space_Comment_wrapper_ p =
-let _prefix_ = PC.caten _Skip_ p in
-let _parsed_format_ = PC.caten _prefix_ _Spaces_ in
-PC.pack _parsed_format_ (fun((prefix, data), suffix) ->data);;
-*)
-
 (* ------------------- Boolean Parser ------------------------------ *)
 
 let _tchar_ = (PC.char_ci 't');;
@@ -86,7 +62,7 @@ let _falseParser_ =
   let _falsep_ = PC.caten _sulamit_ _fchar_ in
   PC.pack _falsep_ (fun(s,f) -> Bool(false));;
 
-let _Boolean_no_space_ = PC.disj _trueParser_ _falseParser_;;
+let _Boolean_ = PC.disj _trueParser_ _falseParser_;;
 
 
 (* ----------------------------- number ----------------------------- *)
@@ -109,12 +85,12 @@ let _Integer_val_ =
     |Some '-' ->  "-" ^ number
     |_ -> number);;
 
-let _Integer_no_space_ = 
+let _Integer_ = 
       PC.pack _Integer_val_ (fun ( number) -> Number(Int(int_of_string number)));; 
 
 
 
-let _Float_no_space_=
+let _Float_=
   let _dot_ = PC.char '.' in
     let _dot_natural_ = PC.caten _dot_ _Natural_val_ in
       let _float_format_ = PC.caten _Integer_val_ _dot_natural_ in
@@ -140,7 +116,7 @@ let _Hex_Natural_val_ =
 
 let _Sign_hex_ = (PC.caten (PC.maybe (PC.one_of("+-")))_HexNatural_)
 
-let _HexInteger_no_space_ = 
+let _HexInteger_ = 
 let _hex_integer_format_ = PC.caten _HexPrefix_ _Sign_hex_ in
 PC.pack _hex_integer_format_ (fun(((prefix1,prefix2),(sign,digits))) -> match sign with
 |None -> Number(Int((int_of_string(list_to_string('0' :: 'x'::digits))))) 
@@ -157,7 +133,7 @@ PC.pack _hex_integer_format_ (fun(((prefix1,prefix2),(sign,digits))) -> match si
 | Some '+' -> list_to_string('0' :: 'x'::digits)
 | _ -> raise PC.X_no_match);;
 
-let _HexFloat_no_sapce_ = 
+let _HexFloat_ = 
 let _dot_ = PC.char '.' in
     let _dot_hex_natural_ = PC.caten _dot_ _Hex_Natural_val_ in
       let _hex_float_format_ = PC.caten _HexIntegerval_ _dot_hex_natural_ in
@@ -177,16 +153,16 @@ let _e_ = PC.char_ci 'e' ;;
 let _prefix_and_e_ = PC.caten _Integer_val_ _e_;;
 let _sceintific_format_int_ = PC.caten _prefix_and_e_ _Integer_val_;;
 let _sceintific_notation_int_ =
-PC.pack _sceintific_format_int_ (fun ((before,e),after)-> Number(Int(int_of_float((float_of_string ( before)) *. (10.0 **  float_of_string ( (after)))))));;
+PC.pack _sceintific_format_int_ (fun ((before,e),after)-> Number(Float((float_of_string ( before)) *. (10.0 **  float_of_string ( (after))))));;
 
 let _Fprefix_and_e_ = PC.caten _Float_val_ _e_;;
 let _sceintific_format_float_ = PC.caten _Fprefix_and_e_ _Integer_val_;;
 let _sceintific_notation_float_ =
 PC.pack _sceintific_format_float_ (fun ((before,e),after)-> Number(Float(before *. (10.0 **   float_of_string ( (after))))));;
 
-let _sceintific_no_space_ = PC.disj _sceintific_notation_float_ _sceintific_notation_int_;;
+let _sceintific_ = PC.disj _sceintific_notation_float_ _sceintific_notation_int_;;
 
-let _Number_ = PC.disj_list [_sceintific_no_space_;_HexFloat_no_sapce_;_Float_no_space_;_HexInteger_no_space_; _Integer_no_space_; ] ;;
+let _Number_ = PC.disj_list [_sceintific_;_HexFloat_;_Float_;_HexInteger_; _Integer_; ] ;;
 
 (* ----------------------------- char ------------------------------- *)
 
@@ -223,7 +199,7 @@ let _greaterThanSpace_ = (PC.range (char_of_int 32) (char_of_int 127));;
 let _VisibleSimpleChar_ = 
   PC.pack _greaterThanSpace_ (fun (c)-> Char(c));;
   
-let _Char_no_space_  = 
+let _Char_  = 
 let prefixAndChar = PC.caten _CharPrefix_  (PC.disj_list [_NamedChar_;  _HexChar_;_VisibleSimpleChar_;]) in
 PC.pack prefixAndChar (fun(x,c)->c);;
 
@@ -275,7 +251,7 @@ PC.guard chars (fun(literal)-> ( literal!='\"') && literal!='\\');;
 
 let _StringChar_ = PC.disj_list [_StringMetaChar_ ;_StringHexChar_;_StringLiteralChar_;];;
 
-let _String_no_space_ = 
+let _String_ = 
 let kleeneString = PC.caten _merchaot_ (PC.caten (PC.star _StringChar_) _merchaot_) in
 PC.pack kleeneString (fun(x, (s,y))-> String(list_to_string s));;
 
@@ -304,7 +280,7 @@ let _capital_letters = PC.range 'A' 'Z' in
 
 let _SymbolChar_ = PC.disj_list [_parsed_; _digit_chars_;_letters_;_bang_; _dollar_; _exp_; _kohavit_; _makaf_; _low_makaf_; _equal_; _plus_; _meshulash_open_; _meshulash_close_; _question_; _forward_slash_; _dots_;];;
 
-let _Symbol_no_space_ =
+let _Symbol_ =
   let _SymbolChars_ = PC.plus _SymbolChar_ in
   PC.pack _SymbolChars_ (fun (chars) ->  Symbol(list_to_string chars));;
 
@@ -328,7 +304,7 @@ let a = PC.caten poteah soger in
 PC.pack a (fun(s) -> Nil);;
 
 
-let _atoms_ = PC.disj_list[ _Boolean_no_space_;_Char_no_space_; _Number_ ; _String_no_space_; _Symbol_no_space_;];;
+let _atoms_ = PC.disj_list[ _Boolean_;_Char_; _Number_ ; _String_; _Symbol_;];;
 
 let rec _Sexp_ s = 
 let sexp_and_spaces = PC.caten (PC.caten _comments_and_spaces_ (PC.disj _atoms_ _compound_ )) _comments_and_spaces_ in
@@ -336,13 +312,13 @@ let sexp_and_spaces = PC.caten (PC.caten _comments_and_spaces_ (PC.disj _atoms_ 
 
 
 and _compound_  s= 
-let packed = PC.disj_list [_List_no_space_;_Vector_no_space_;_DottedList_no_space_;_Quoted_no_space_;_QuasiQuoted_no_space_;_Unquoted_no_space_;_UnquoteAndSpliced_no_space_;] in
+let packed = PC.disj_list [_List_;_Vector_;_DottedList_;_Quoted_;_QuasiQuoted_;_Unquoted_;_UnquoteAndSpliced_;] in
 packed s
 
 
 (*---------------------------- LIST --------------------------------------*)
 
-and _List_no_space_ s =
+and _List_ s =
 let a = PC.caten (PC.caten poteah (PC.star _Sexp_)) soger in
 let b =  PC.caten (PC.caten squarePoteah (PC.star _Sexp_)) squareSoger in 
 let aORb = PC.disj a b in
@@ -351,7 +327,7 @@ packed s
 
 
 (*---------------------------- Dotted LIST --------------------------------------*)
-and _DottedList_no_space_ s=
+and _DottedList_ s=
 let a = PC.caten (PC.caten poteah (PC.plus _Sexp_)) (PC.char '.') in
 let b = PC.caten a _Sexp_ in
 let sogerPoteahAndContent =  PC.caten b soger in
@@ -364,7 +340,7 @@ packed s
 
 
 (*---------------------------- Vector --------------------------------------*)
-and _Vector_no_space_ s = 
+and _Vector_ s = 
 let sulPoteah = PC.caten (PC.char '#') poteah in
 let a = PC.caten sulPoteah (PC.star _Sexp_) in
 let sogerPoteahAndContent =  PC.caten a soger in
@@ -395,28 +371,28 @@ _Skip_ s
 
 (*---------------------------- Quoted --------------------------------------*)
 
-and _Quoted_no_space_ s= 
+and _Quoted_ s= 
 let prefix = (PC.caten (PC.char '\'') _Sexp_) in
 let packed = PC.pack  prefix (fun(x,s)->Pair(Symbol("quote"), Pair(s, Nil))) in
 packed s
 
 
 (*---------------------------- QuasiQuoted --------------------------------------*)
-and _QuasiQuoted_no_space_ s=
+and _QuasiQuoted_ s=
 let prefix =  (PC.caten (PC.char '`') _Sexp_ ) in
 let packed = PC.pack prefix (fun(x,s)->Pair(Symbol("quasiquote"), Pair(s, Nil))) in
 packed s
 
 (*---------------------------- Unquoted --------------------------------------*)
 
-and _Unquoted_no_space_ s= 
+and _Unquoted_ s= 
 let prefix = PC.caten (PC.char ',')  _Sexp_  in
 let packed = PC.pack prefix (fun(x,s)->Pair(Symbol("unquote"), Pair(s, Nil))) in
 packed s
 
 
 (*---------------------------- ⟨UnquoteAndSpliced⟩ --------------------------------------*)
-and _UnquoteAndSpliced_no_space_ s =
+and _UnquoteAndSpliced_ s =
 let prefix = PC.caten (PC.word ",@")  _Sexp_  in
 let packed = PC.pack prefix (fun(x,s)->Pair(Symbol("unquote-splicing"), Pair(s, Nil))) in
 packed s ;;
@@ -437,18 +413,7 @@ let rec _parse_next_expression_ _expression_ =
 let read_sexprs string = 
 _parse_next_expression_ (string_to_list  string );;
 
-PC.test_string _Sexp_ "chino";;
-(*---------------------
 
-GILAD
-let rec _rec_read_sexprs str_list =
-  match str_list with
- |[] -> []
- |lst -> let cur,rest = (_sexpr() str_list) in cur::(_rec_read_sexprs rest);;
-
-let read_sexprs string =
- _rec_read_sexprs (string);;
- *)
 end;; (* struct Reader *)
 
 
