@@ -318,6 +318,7 @@ let nt_close = PC.char ')';;
 
 (*-------------------------------- recursive --------------------------------------*)
 let sexp_comment_prefix = PC.word  "#;";;
+let _psikuda_ = PC.char ';';;
 let poteah = PC.char '(' ;;
 let soger = PC.char ')' ;;
 let squarePoteah = PC.char '[' ;;
@@ -328,10 +329,10 @@ PC.pack a (fun(s) -> Nil);;
 
 
 let _atoms_ = PC.disj_list[ _Boolean_no_space_;_Char_no_space_; _Number_ ; _String_no_space_; _Symbol_no_space_;];;
+
 let rec _Sexp_ s = 
-let a= PC.disj_list[_atoms_;_compound_;] in
-let b = PC.caten (PC.caten _all_spaces_ a) _all_spaces_ in
-(PC.pack b (fun((first, exp),last)->exp)) s 
+let sexp_and_spaces = PC.caten (PC.caten _comments_and_spaces_ (PC.disj _atoms_ _compound_ )) _comments_and_spaces_ in
+(PC.pack sexp_and_spaces (fun((first_spaces, sexp),last_spaces)->sexp)) s 
 
 
 and _compound_  s= 
@@ -374,19 +375,18 @@ packed s
     (*---------------------------- SEXPER COMMENT --------------------------------------*)
 
 and _Sexpr_Comment_ s  =
-let a= PC.caten  (PC.word  "#;") _Sexp_ in
-let packed =PC.pack a (fun(x,y)->Nil) in
+let _Scomment_format_= PC.caten  sexp_comment_prefix _Sexp_ in
+let packed =PC.pack _Scomment_format_ (fun(x,y)->[]) in
 packed s
 
-and _all_spaces_ s=
-let _Space_ =  PC.pack (PC.nt_whitespace) (fun(x)->Nil) in 
-let _psikuda_ = PC.char ';' in
+and _comments_and_spaces_ s=
+let _Space_ =  PC.pack (PC.nt_whitespace) (fun(x)->[]) in 
 let _comment_char_data_ =
-let a =(PC.range (char_of_int 32) (char_of_int 127)) in PC.guard a (fun(literal)-> ( literal!='\n')) in
+let _no_newline_ =(PC.range (char_of_int 32) (char_of_int 127)) in PC.guard _no_newline_ (fun(literal)-> ( literal!='\n')) in
 let _comment_full_data_ = PC.star _comment_char_data_ in
 let _comment_start_and_data_ = PC.caten _psikuda_ _comment_full_data_ in
-let _end_of_comment_ = PC.char '\n' in
-let _Line_Comment_ =  PC.pack (PC.caten _comment_start_and_data_ _end_of_comment_) (fun ((x,y),z)->Nil)  in
+let _end_of_comment_ = PC.disj (PC.char '\n') (PC.char (char_of_int 3))  in
+let _Line_Comment_ =  PC.pack (PC.caten _comment_start_and_data_ _end_of_comment_) (fun ((x,y),z)->[])  in
 let _Comment_ = PC.disj _Line_Comment_ _Sexpr_Comment_ in
 let _Skip_ =  (PC.star (PC.disj _Comment_ _Space_ )) in
 _Skip_ s
