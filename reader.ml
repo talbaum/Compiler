@@ -51,10 +51,12 @@ let normalize_scheme_symbol str =
 
 
 (*-------------------------Spaces and comments---------------------------*)
+
 let _Space_ = PC.nt_whitespace;;
 let _Spaces_ =
  let a =PC.star _Space_ in 
  PC.pack a (fun (x) -> PC.char 't');;
+ 
 let _not_psikuda_ = 
   let a =(PC.range (char_of_int 32) (char_of_int 127)) in
   PC.guard a (fun(literal)-> ( literal!=';'));;
@@ -70,7 +72,6 @@ let _end_of_comment_ = PC.char '\n' ;;
 let _Comment_ = 
 let a = PC.caten _comment_start_and_data_ _end_of_comment_ in 
 PC.pack a (fun (x) -> PC.char 't');;
-
 let _Skip_ = PC.disj _Spaces_ _Comment_;;
 
 let _Space_Comment_wrapper_ p =
@@ -96,6 +97,7 @@ let _Boolean_no_space_ = PC.disj _trueParser_ _falseParser_;;
 let _Boolean_ = _Space_Comment_wrapper_ _Boolean_no_space_;;
 
 (* ----------------------------- number ----------------------------- *)
+
 let _Digit_ = PC.range '0' '9' ;;
 let _Natural_ = 
   let _Digits_ = PC.plus _Digit_ in
@@ -105,18 +107,17 @@ let _Natural_val_ =
   let _Digits_ = PC.plus _Digit_ in
   PC.pack _Digits_ (fun (digits) ->  (list_to_string digits));;
 
-let _Sign_ = (PC.caten (PC.maybe (PC.one_of("+-")))_Natural_);;
+let _Sign_ = (PC.caten (PC.maybe (PC.one_of("+-")))_Natural_val_);;
 
 
 let _Integer_val_ = 
-      PC.pack _Sign_ (fun (sign, number) -> match sign, number with
-    |Some '+' , Int(number)->  number
-    |Some '-',  Int(number) ->  number*(-1)
-    |_ , Int(number) -> number
-    |_,_ -> raise PC.X_no_match);;
+      PC.pack _Sign_ (fun (sign, number) -> match sign with
+    |Some '+' ->  number
+    |Some '-' ->  "-" ^ number
+    |_ -> number);;
 
 let _Integer_no_space_ = 
-      PC.pack _Integer_val_ (fun ( number) -> Number(Int(number)));; 
+      PC.pack _Integer_val_ (fun ( number) -> Number(Int(int_of_string number)));; 
 
 let _Integer_ = _Space_Comment_wrapper_ _Integer_no_space_;;
 
@@ -124,13 +125,13 @@ let _Float_no_space_=
   let _dot_ = PC.char '.' in
     let _dot_natural_ = PC.caten _dot_ _Natural_val_ in
       let _float_format_ = PC.caten _Integer_val_ _dot_natural_ in
-        PC.pack _float_format_ (fun(n, (dot, n2)) -> Number(Float(float_of_string(string_of_int n ^ "." ^ n2))));;
+        PC.pack _float_format_ (fun(n, (dot, n2)) ->  Number(Float(float_of_string(n ^ "." ^ n2))));;
 
 let _Float_ = _Space_Comment_wrapper_ _Float_no_space_;;
 
 let _HexPrefix_ = 
   let _sulamit_ = PC.char '#' in
-  let _x_ = PC.char 'x' in
+  let _x_ = PC.char_ci 'x' in
   PC.caten _sulamit_ _x_;;
 
 let _Lower_ = PC.range 'a' 'f';;
@@ -172,7 +173,30 @@ let _dot_ = PC.char '.' in
 
 let _HexFloat_ = _Space_Comment_wrapper_ _HexFloat_no_sapce_;;
 
-let _Number_ = PC.disj_list [_HexFloat_;_Float_;_HexInteger_; _Integer_; ] ;;
+(*--------------------------- Sceintific Notation ---------------------------------------*)
+
+let _Float_val_=
+  let _dot_ = PC.char '.' in
+    let _dot_natural_ = PC.caten _dot_ _Natural_val_ in
+      let _float_format_ = PC.caten _Integer_val_ _dot_natural_ in
+        PC.pack _float_format_ (fun(n, (dot, n2)) -> float_of_string( n ^ "." ^ n2));;
+
+ 
+let _e_ = PC.char_ci 'e' ;;
+let _prefix_and_e_ = PC.caten _Integer_val_ _e_;;
+let _sceintific_format_int_ = PC.caten _prefix_and_e_ _Integer_val_;;
+let _sceintific_notation_int_ =
+PC.pack _sceintific_format_int_ (fun ((before,e),after)-> Number(Int(int_of_float((float_of_string ( before)) *. (10.0 **  float_of_string ( (after)))))));;
+
+let _Fprefix_and_e_ = PC.caten _Float_val_ _e_;;
+let _sceintific_format_float_ = PC.caten _Fprefix_and_e_ _Integer_val_;;
+let _sceintific_notation_float_ =
+PC.pack _sceintific_format_float_ (fun ((before,e),after)-> Number(Float(before *. (10.0 **   float_of_string ( (after))))));;
+
+let _sceintific_ = PC.disj _sceintific_notation_float_ _sceintific_notation_int_;;
+
+let _Number_ = PC.disj_list [_sceintific_;_HexFloat_;_Float_;_HexInteger_; _Integer_; ] ;;
+PC.test_string _Number_ "50E-4";;
 
 (* ----------------------------- char ------------------------------- *)
 
@@ -317,10 +341,10 @@ PC.pack a (fun(s) -> Nil);;
 
 
 let _atoms_ = PC.disj_list[_Boolean_;_Char_; _Number_; _String_; _Symbol_;];;
-let rec _Sexp_ s = PC.disj_list[_atoms_;_compound_; ] s
+let rec _Sexp_ s = PC.disj_list[_atoms_;_compound_;] s
 
 and _compound_  s= 
-let packed = PC.disj_list [_List_;_Vector_;_Quoted_;_QuasiQuoted_;_Unquoted_;_UnquoteAndSpliced_;] in
+let packed = PC.disj_list [_List_;_Vector_;_DottedList_;_Quoted_;_QuasiQuoted_;_Unquoted_;_UnquoteAndSpliced_;] in
 packed s
 
 
@@ -407,25 +431,13 @@ and _UnquoteAndSpliced_ s =
 let packed = _Space_Comment_wrapper_ _UnquoteAndSpliced_no_space_ in
 packed s;;
 
-(*--------------------------- Sceintific Notation ---------------------------------------*)
+let read_sexpr string = 
+let (a,b)=_Sexp_ (string_to_list (string)) in
+a;;
 
-let _Float_val_=
-  let _dot_ = PC.char '.' in
-    let _dot_natural_ = PC.caten _dot_ _Natural_val_ in
-      let _float_format_ = PC.caten _Integer_val_ _dot_natural_ in
-        PC.pack _float_format_ (fun(n, (dot, n2)) -> float_of_string(string_of_int n ^ "." ^ n2));;
-
- 
-let _e_ = PC.char_ci 'e' ;;
-let _prefix_and_e_ = PC.caten _Integer_val_ _e_;;
-let _sceintific_format_int_ = PC.caten _prefix_and_e_ _Integer_val_;;
-let _sceintific_notation_int_ =
-PC.pack _sceintific_format_int_ (fun ((before,e),after)-> Number(Int(int_of_float((float_of_string (string_of_int before)) *. (10.0 **  float_of_string (string_of_int (after)))))));;
-
-let _Fprefix_and_e_ = PC.caten _Float_val_ _e_;;
-let _sceintific_format_float_ = PC.caten _Fprefix_and_e_ _Integer_val_;;
-let _sceintific_notation_float_ =
-PC.pack _sceintific_format_float_ (fun ((before,e),after)-> Number(Float(before *. (10.0 **   float_of_string (string_of_int (after))))));;
-
+let rec create_tree s = 
+let first,rest = (_Sexp_ s) in first::(create_tree rest);;
+let read_sexprs string = 
+  create_tree (string_to_list(string));;
 
 end;; (* struct Reader *)
