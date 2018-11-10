@@ -52,7 +52,9 @@ let normalize_scheme_symbol str =
 
 (*-------------------------Spaces and comments---------------------------*)
 let _Space_ = PC.nt_whitespace;;
-let _Spaces_ = PC.star _Space_ ;;
+let _Spaces_ =
+ let a =PC.star _Space_ in 
+ PC.pack a (fun (x) -> PC.char 't');;
 let _not_psikuda_ = 
   let a =(PC.range (char_of_int 32) (char_of_int 127)) in
   PC.guard a (fun(literal)-> ( literal!=';'));;
@@ -65,7 +67,10 @@ PC.guard a (fun(literal)-> ( literal!='\n'));;
 let _comment_full_data_ = PC.star _comment_char_data_;;
 let _comment_start_and_data_ = PC.caten _comment_start_ _comment_full_data_ ;;
 let _end_of_comment_ = PC.char '\n' ;;
-let _Comment_ = PC.caten _comment_start_and_data_ _end_of_comment_;;
+let _Comment_ = 
+let a = PC.caten _comment_start_and_data_ _end_of_comment_ in 
+PC.pack a (fun (x) -> PC.char 't');;
+
 let _Skip_ = PC.disj _Spaces_ _Comment_;;
 
 
