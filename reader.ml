@@ -49,30 +49,39 @@ let normalize_scheme_symbol str =
 
 
 
-
 (*-------------------------Spaces and comments---------------------------*)
 
-let _Space_ = PC.nt_whitespace;;
+let _Space_ = 
+let a= PC.nt_whitespace in
+PC.pack a (fun (x) -> []);;
+
 let _Spaces_ =
  let a =PC.star _Space_ in 
- PC.pack a (fun (x) -> PC.char 't');;
- 
+ PC.pack a (fun (x) -> []);;
+
+(*
 let _not_psikuda_ = 
   let a =(PC.range (char_of_int 32) (char_of_int 127)) in
   PC.guard a (fun(literal)-> ( literal!=';'));;
-let _psikuda_ = PC.char ';' ;;
+
 let _many_not_psikuda_ = PC.star _not_psikuda_;;
 let _comment_start_ =  PC.caten _many_not_psikuda_ _psikuda_;;
+*)
+let _psikuda_ = PC.char ';' ;;
 let _comment_char_data_ =
 let a =(PC.range (char_of_int 32) (char_of_int 127)) in
 PC.guard a (fun(literal)-> ( literal!='\n'));;
 let _comment_full_data_ = PC.star _comment_char_data_;;
-let _comment_start_and_data_ = PC.caten _comment_start_ _comment_full_data_ ;;
+
+let _comment_start_and_data_ = PC.caten _psikuda_ _comment_full_data_ ;;
 let _end_of_comment_ = PC.char '\n' ;;
 let _Comment_ = 
 let a = PC.caten _comment_start_and_data_ _end_of_comment_ in 
-PC.pack a (fun (x) -> PC.char 't');;
-let _Skip_ = PC.disj _Spaces_ _Comment_;;
+PC.pack a (fun (x) ->  []);;
+let tmp = PC.disj _Spaces_ _Comment_;;
+
+let _Skip_ =  (PC.star (PC.disj _Comment_ _Space_ ));;
+
 
 let _Space_Comment_wrapper_ p =
 let _prefix_ = PC.caten _Skip_ p in
@@ -196,7 +205,6 @@ PC.pack _sceintific_format_float_ (fun ((before,e),after)-> Number(Float(before 
 let _sceintific_ = PC.disj _sceintific_notation_float_ _sceintific_notation_int_;;
 
 let _Number_ = PC.disj_list [_sceintific_;_HexFloat_;_Float_;_HexInteger_; _Integer_; ] ;;
-PC.test_string _Number_ "50E-4";;
 
 (* ----------------------------- char ------------------------------- *)
 
@@ -330,7 +338,7 @@ let nt_open = PC.char '(';;
 let nt_close = PC.char ')';;
 
 (*-------------------------------- recursive --------------------------------------*)
-
+let sexp_comment_prefix = PC.word  "#;";;
 let poteah = PC.char '(' ;;
 let soger = PC.char ')' ;;
 let squarePoteah = PC.char '[' ;;
@@ -390,6 +398,16 @@ packed s
 and _Vector_ s = 
 let packed = _Space_Comment_wrapper_ _Vector_no_space_ in
 packed s
+
+    (*---------------------------- SEXPER COMMENT --------------------------------------*)
+
+and _Sexpr_Comment_ s  =
+let a= PC.caten  (PC.word  "#;") _Sexp_ in
+let packed =PC.pack a (fun(x,y)->[]) in
+packed s
+
+
+
 (*---------------------------- Quoted --------------------------------------*)
 
 and _Quoted_no_space_ s= 
@@ -431,13 +449,33 @@ and _UnquoteAndSpliced_ s =
 let packed = _Space_Comment_wrapper_ _UnquoteAndSpliced_no_space_ in
 packed s;;
 
+
+
 let read_sexpr string = 
 let (a,b)=_Sexp_ (string_to_list (string)) in
 a;;
 
-let rec create_tree s = 
-let first,rest = (_Sexp_ s) in first::(create_tree rest);;
-let read_sexprs string = 
-  create_tree (string_to_list(string));;
+let rec _parse_next_expression_ _expression_ = 
+  match _expression_ with
+ | [] -> []
+ | _not_empty_list_ -> let head,tail = (_Sexp_ _expression_) in 
+ head :: _parse_next_expression_ tail;;
 
+let read_sexprs string = 
+_parse_next_expression_ (string_to_list  string );;
+
+PC.test_string _Sexp_ "chino";;
+(*---------------------
+
+GILAD
+let rec _rec_read_sexprs str_list =
+  match str_list with
+ |[] -> []
+ |lst -> let cur,rest = (_sexpr() str_list) in cur::(_rec_read_sexprs rest);;
+
+let read_sexprs string =
+ _rec_read_sexprs (string);;
+ *)
 end;; (* struct Reader *)
+
+
