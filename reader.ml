@@ -59,7 +59,7 @@ let _not_psikuda_ =
   let a =(PC.range (char_of_int 32) (char_of_int 127)) in
   PC.guard a (fun(literal)-> ( literal!=';'));;
 let _psikuda_ = PC.char ';' ;;
-let _many_not_psikuda_ = PC.plus _not_psikuda_;;
+let _many_not_psikuda_ = PC.star _not_psikuda_;;
 let _comment_start_ =  PC.caten _many_not_psikuda_ _psikuda_;;
 let _comment_char_data_ =
 let a =(PC.range (char_of_int 32) (char_of_int 127)) in
@@ -72,7 +72,6 @@ let a = PC.caten _comment_start_and_data_ _end_of_comment_ in
 PC.pack a (fun (x) -> PC.char 't');;
 
 let _Skip_ = PC.disj _Spaces_ _Comment_;;
-
 
 let _Space_Comment_wrapper_ p =
 let _prefix_ = PC.caten _Skip_ p in
