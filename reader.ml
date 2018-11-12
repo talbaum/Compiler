@@ -218,25 +218,19 @@ let _StringHexChar_ =
 
 let _backslash_ = (PC.char '\\');;
 let _merchaot_ = PC.char '\"';;
+let input_merchaot = (PC.word_ci "\\\"");;
+let input_t =  (PC.word_ci "\\t");;
+let input_f = (PC.word_ci "\\f");;
+let input_n =  (PC.word_ci "\\n");;
+let input_r = (PC.word_ci "\\r");;
+let input_slash = (PC.word_ci "\\\\") ;;
 
-let meta1 =
-let word = (PC.word_ci "\\\"") in
- PC.pack  word(fun(x)-> '\"');;
-let meta2 = 
-let word = (PC.word_ci "\\t") in
-PC.pack word (fun(x)-> '\t');;
-let meta3 = 
-let word = (PC.word_ci "\\f") in
-PC.pack word (fun(x)-> '\012');;
-let meta4 = 
-let word = (PC.word_ci "\\n") in
-PC.pack word (fun(x)-> '\n');;
-let meta5 = 
-let word= (PC.word_ci "\\r") in
-PC.pack  word(fun(x)-> '\r');;
-let meta6 = 
-let word = (PC.word_ci "\\\\") in
-PC.pack word (fun(x)-> ('\\'));;
+let meta1 = PC.pack  input_merchaot(fun(x)-> '\"');;
+let meta2 = PC.pack input_t (fun(x)-> '\t');;
+let meta3 = PC.pack input_f (fun(x)-> '\012');;
+let meta4 = PC.pack input_n (fun(x)-> '\n');;
+let meta5 = PC.pack  input_r(fun(x)-> '\r');;
+let meta6 = PC.pack input_slash (fun(x)-> ('\\'));;
 
 let first_disf = PC.disj meta5 meta6;;
 let second_disf = PC.disj meta4 first_disf;;
@@ -298,22 +292,19 @@ let poteah = PC.char '(' ;;
 let soger = PC.word ")" ;;
 let squarePoteah = PC.char '[' ;;
 let squareSoger = PC.word "]" ;;
-(*
-let _nil_ = (*NOTICE THIS ADD SKIP HERE?*)
-let a = PC.caten poteah soger in
-PC.pack a (fun(s) -> Nil);;
-*)
 
 
 let _atoms_ = PC.disj_list[ _Boolean_;_Char_; _Number_ ; _String_; _Symbol_;];;
 
 let rec _Sexp_ s = 
-let sexp_and_spaces = PC.caten (PC.caten _comments_and_spaces_ (PC.disj _atoms_ _compound_ )) _comments_and_spaces_ in
-(PC.pack sexp_and_spaces (fun((first_spaces, sexp),last_spaces)->sexp)) s 
+let spaces_before_and_sexp= (PC.caten _comments_and_spaces_ (PC.disj _atoms_ _compound_ )) in
+let sexp_and_spaces_after = PC.caten spaces_before_and_sexp _comments_and_spaces_ in
+(PC.pack sexp_and_spaces_after (fun((first_spaces, sexp),last_spaces)->sexp)) s 
 
 and _nested_Sexp_ s = 
-let sexp_and_spaces = PC.caten (PC.caten _comments_and_spaces_ (PC.disj _atoms_ _nested_compound_ )) _comments_and_spaces_ in
-(PC.pack sexp_and_spaces (fun((first_spaces, sexp),last_spaces)->sexp)) s 
+let spaces_before_and_sexp= (PC.caten _comments_and_spaces_ (PC.disj _atoms_ _nested_compound_ )) in
+let sexp_and_spaces_after = PC.caten spaces_before_and_sexp _comments_and_spaces_ in
+(PC.pack sexp_and_spaces_after (fun((first_spaces, sexp),last_spaces)->sexp)) s 
 
 and _compound_  s= 
 let packed = PC.disj_list [_List_;_Vector_;_DottedList_;_Quoted_;_QuasiQuoted_;_Unquoted_;_UnquoteAndSpliced_;] in
@@ -330,15 +321,19 @@ let _Scomment_format_= PC.caten  sexp_comment_prefix _Sexp_ in
 let packed =PC.pack _Scomment_format_ (fun(x,y)->[]) in
 packed s
 
-and _comments_and_spaces_ s=
-let _Space_ =  PC.pack (PC.nt_whitespace) (fun(x)->[]) in 
-let _comment_char_data_ =
-let _no_newline_ =(PC.range (char_of_int 32) (char_of_int 127)) in PC.guard _no_newline_ (fun(literal)-> ( literal!='\n')) in
+
+and _line_comment_ s= 
+let _no_newline_ =(PC.range (char_of_int 32) (char_of_int 127)) in 
+let _comment_char_data_ =PC.guard _no_newline_ (fun(literal)-> ( literal!='\n')) in
 let _comment_full_data_ = PC.star _comment_char_data_ in
 let _comment_start_and_data_ = PC.caten _psikuda_ _comment_full_data_ in
 let _end_of_comment_ = PC.disj (PC.char '\n') (PC.char (char_of_int 3))  in
-let _Line_Comment_ =  PC.pack (PC.caten _comment_start_and_data_ _end_of_comment_) (fun ((x,y),z)->[])  in
-let _Comment_ = PC.disj _Line_Comment_ _Sexpr_Comment_ in
+let _line_Comment1_ =  PC.pack (PC.caten _comment_start_and_data_ _end_of_comment_) (fun ((x,y),z)->[])  in
+_line_Comment1_ s
+
+and _comments_and_spaces_ s=
+let _Space_ =  PC.pack (PC.nt_whitespace) (fun(x)->[]) in 
+let _Comment_ = PC.disj   _line_comment_ _Sexpr_Comment_ in
 let _Skip_ =  (PC.star (PC.disj _Comment_ _Space_ )) in
 _Skip_ s
 
@@ -358,8 +353,8 @@ let c = PC.caten (PC.caten poteah (PC.star _nested_Sexp_)) (PC.word "...") in
 let d =  PC.caten (PC.caten squarePoteah (PC.star _nested_Sexp_)) (PC.word "...") in 
 let cORd = PC.disj c d in
 let final = PC.disj aORb cORd  in
-let non_empty_list =  PC.pack final (fun((x,lst_sexp),y)->List.fold_right (fun n1 n2 -> Pair(n1,n2))  lst_sexp Nil) in
-let packed = PC.disj _nil_ non_empty_list in
+let non_empty_list =  PC.pack final (fun((x,sexp),y)->List.fold_right (fun head tail -> Pair(head,tail))  sexp Nil) in
+let packed = PC.disj  non_empty_list _nil_ in
 packed s
 
 and _nested_List_ s =
@@ -381,7 +376,7 @@ let dots3 = PC.caten (PC.caten squarePoteah (PC.plus _nested_Sexp_)) (PC.char '.
 let dots4 = PC.caten (PC.caten dots3 _nested_Sexp_)  (PC.word "...") in
 let dotsSquareOrNot = PC.disj dots2 dots4 in
 let chino = (PC.disj  squareOrNot dotsSquareOrNot) in
-let packed =  PC.pack chino (fun((((p,lst_sexp),nekuda),sexp),soger)->List.fold_right (fun n1 n2 -> Pair(n1,n2)) lst_sexp sexp) in
+let packed =  PC.pack chino (fun((((p,sexp1),nekuda),sexp2),soger)->List.fold_right (fun head tail -> Pair(head,tail)) sexp1 sexp2) in
 packed s
 
 and _nested_DottedList_ s =
@@ -390,7 +385,7 @@ let sogerPoteahAndContent = PC.caten (PC.caten a _nested_Sexp_) (PC.maybe soger)
 let square_a = PC.caten (PC.caten squarePoteah (PC.plus _nested_Sexp_)) (PC.char '.') in
 let sogerPoteahAndContent1 =PC.caten( PC.caten square_a _nested_Sexp_) (PC.maybe squareSoger) in
 let squareOrNot = PC.disj sogerPoteahAndContent sogerPoteahAndContent1 in
-let packed =  PC.pack squareOrNot (fun((((p,lst_sexp),nekuda),sexp),soger)->List.fold_right (fun n1 n2 -> Pair(n1,n2)) lst_sexp sexp) in
+let packed =  PC.pack squareOrNot (fun((((p,sexp1),nekuda),sexp2),soger)->List.fold_right (fun head tail -> Pair(head,tail)) sexp1 sexp2) in
 packed s
 
 
