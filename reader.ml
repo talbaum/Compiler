@@ -322,8 +322,8 @@ packed s
 and _nested_compound_  s= 
 let packed = PC.disj_list [_nested_DottedList_;_nested_List_;_nested_Vector_;_nested_Quoted_;_nested_QuasiQuoted_;_nested_Unquoted_;_nested_UnquoteAndSpliced_;] in
 packed s
-(*---------------------------- LIST --------------------------------------*)
 
+(*---------------------------- SEXPER COMMENT --------------------------------------*)
 
 and _Sexpr_Comment_ s  =
 let _Scomment_format_= PC.caten  sexp_comment_prefix _Sexp_ in
@@ -347,6 +347,8 @@ let _poteach_space_ = PC.caten poteah _comments_and_spaces_ in
 let _nil_spaces_format_ = PC.caten  _poteach_space_ soger in
 let packed = PC. pack _nil_spaces_format_ (fun(x) -> Nil)
 in packed s
+
+(*---------------------------- LIST --------------------------------------*)
 
 and _List_ s =
 let a = PC.caten (PC.caten poteah (PC.star _Sexp_)) soger in
@@ -407,9 +409,6 @@ let a = PC.caten sulPoteah (PC.star _nested_Sexp_) in
 let sogerPoteahAndContent =  PC.caten a (PC.maybe soger) in
 let packed =  PC.pack sogerPoteahAndContent (fun(((sulamit,p),lst_sexp),y)-> Vector(lst_sexp)) in
 packed s
-    (*---------------------------- SEXPER COMMENT --------------------------------------*)
-
-
 
 
 (*---------------------------- Quoted --------------------------------------*)
