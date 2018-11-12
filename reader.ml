@@ -68,24 +68,24 @@ let _Boolean_ = PC.disj _trueParser_ _falseParser_;;
 (* ----------------------------- number ----------------------------- *)
 
 let _Digit_ = PC.range '0' '9' ;;
-let _Natural_ = 
+let _Natural_ =
   let _Digits_ = PC.plus _Digit_ in
   PC.pack _Digits_ (fun (digits) -> Int (int_of_string(list_to_string digits)));;
 
-let _Natural_val_ = 
+let _Natural_val_ =
   let _Digits_ = PC.plus _Digit_ in
   PC.pack _Digits_ (fun (digits) ->  (list_to_string digits));;
 
 let _Sign_ = (PC.caten (PC.maybe (PC.one_of("+-")))_Natural_val_);;
 
 
-let _Integer_val_ = 
+let _Integer_val_ =
       PC.pack _Sign_ (fun (sign, number) -> match sign with
     |Some '+' ->  number
     |Some '-' ->  "-" ^ number
     |_ -> number);;
 
-let _Integer_ = 
+let _Integer_ =
       PC.pack _Integer_val_ (fun ( number) -> Number(Int(int_of_string number)));; 
 
 
@@ -98,7 +98,7 @@ let _Float_=
 
 
 
-let _HexPrefix_ = 
+let _HexPrefix_ =
   let _sulamit_ = PC.char '#' in
   let _x_ = PC.char_ci 'x' in
   PC.caten _sulamit_ _x_;;
@@ -110,22 +110,22 @@ let _Capital_ = PC.range 'A' 'F';;
 let _HexDigit_ = PC.disj_list [_Digit_ ; _Lower_ ; _Capital_ ;];;
 let _HexNatural_ = PC.plus _HexDigit_;;
 
-let _Hex_Natural_val_ = 
+let _Hex_Natural_val_ =
   let _Digits_ = PC.plus _HexDigit_ in
   PC.pack _Digits_ (fun (digits) ->  list_to_string(digits)) ;;
 
 let _Sign_hex_ = (PC.caten (PC.maybe (PC.one_of("+-")))_HexNatural_)
 
-let _HexInteger_ = 
+let _HexInteger_ =
 let _hex_integer_format_ = PC.caten _HexPrefix_ _Sign_hex_ in
 PC.pack _hex_integer_format_ (fun(((prefix1,prefix2),(sign,digits))) -> match sign with
-|None -> Number(Int((int_of_string(list_to_string('0' :: 'x'::digits))))) 
+|None -> Number(Int((int_of_string(list_to_string('0' :: 'x'::digits)))))
 | Some '-' ->  Number(Int((-1)*(int_of_string(list_to_string('0' :: 'x'::digits)))))
-| Some '+' ->   Number(Int((int_of_string(list_to_string('0' :: 'x'::digits))))) 
+| Some '+' ->   Number(Int((int_of_string(list_to_string('0' :: 'x'::digits)))))
 | _ -> raise PC.X_no_match);;
 
 
-let _HexIntegerval_ = 
+let _HexIntegerval_ =
 let _hex_integer_format_ = PC.caten _HexPrefix_ _Sign_hex_ in
 PC.pack _hex_integer_format_ (fun(((prefix1,prefix2),(sign,digits))) -> match sign with
 |None -> list_to_string('0' :: 'x'::digits)
@@ -133,7 +133,7 @@ PC.pack _hex_integer_format_ (fun(((prefix1,prefix2),(sign,digits))) -> match si
 | Some '+' -> list_to_string('0' :: 'x'::digits)
 | _ -> raise PC.X_no_match);;
 
-let _HexFloat_ = 
+let _HexFloat_ =
 let _dot_ = PC.char '.' in
     let _dot_hex_natural_ = PC.caten _dot_ _Hex_Natural_val_ in
       let _hex_float_format_ = PC.caten _HexIntegerval_ _dot_hex_natural_ in
@@ -148,7 +148,7 @@ let _Float_val_=
       let _float_format_ = PC.caten _Integer_val_ _dot_natural_ in
         PC.pack _float_format_ (fun(n, (dot, n2)) -> float_of_string( n ^ "." ^ n2));;
 
- 
+
 let _e_ = PC.char_ci 'e' ;;
 let _prefix_and_e_ = PC.caten _Integer_val_ _e_;;
 let _sceintific_format_int_ = PC.caten _prefix_and_e_ _Integer_val_;;
@@ -181,7 +181,7 @@ let _HexChar_ =
   let zxchars = PC.caten _x_ chars in
   PC.pack zxchars (fun (x,cl) -> Char(char_of_int((int_of_string(list_to_string('0'::'x'::cl))))));;
 
-let _newline_ =  
+let _newline_ = 
 PC.pack (PC.word_ci "newline") (fun(x)-> Char(char_of_int (10)));;
 let _page_=PC.pack (PC.word_ci "page") (fun(x)-> Char(char_of_int (12))) ;;
 let _return_= PC.pack (PC.word_ci "return") (fun(x)-> Char(char_of_int (13)) );;
@@ -196,10 +196,10 @@ let _NamedChar_  =
   
 let _greaterThanSpace_ = (PC.range (char_of_int 32) (char_of_int 127));;
 
-let _VisibleSimpleChar_ = 
+let _VisibleSimpleChar_ =
   PC.pack _greaterThanSpace_ (fun (c)-> Char(c));;
-  
-let _Char_  = 
+
+let _Char_  =
 let prefixAndChar = PC.caten _CharPrefix_  (PC.disj_list [_NamedChar_;  _HexChar_;_VisibleSimpleChar_;]) in
 PC.pack prefixAndChar (fun(x,c)->c);;
 
@@ -245,7 +245,7 @@ PC.guard chars (fun(literal)-> ( literal!='\"') && literal!='\\');;
 
 let _StringChar_ = PC.disj_list [_StringMetaChar_ ;_StringHexChar_;_StringLiteralChar_;];;
 
-let _String_ = 
+let _String_ =
 let kleeneString = PC.caten _merchaot_ (PC.caten (PC.star _StringChar_) _merchaot_) in
 PC.pack kleeneString (fun(x, (s,y))-> String(list_to_string s));;
 
@@ -296,7 +296,7 @@ let squareSoger = PC.word "]" ;;
 
 let _atoms_ = PC.disj_list[ _Boolean_;_Char_; _Number_ ; _String_; _Symbol_;];;
 
-let rec _Sexp_ s = 
+let rec _Sexp_ s =
 let spaces_before_and_sexp= (PC.caten _comments_and_spaces_ (PC.disj _atoms_ _compound_ )) in
 let sexp_and_spaces_after = PC.caten spaces_before_and_sexp _comments_and_spaces_ in
 (PC.pack sexp_and_spaces_after (fun((first_spaces, sexp),last_spaces)->sexp)) s 
@@ -304,13 +304,13 @@ let sexp_and_spaces_after = PC.caten spaces_before_and_sexp _comments_and_spaces
 and _nested_Sexp_ s = 
 let spaces_before_and_sexp= (PC.caten _comments_and_spaces_ (PC.disj _atoms_ _nested_compound_ )) in
 let sexp_and_spaces_after = PC.caten spaces_before_and_sexp _comments_and_spaces_ in
-(PC.pack sexp_and_spaces_after (fun((first_spaces, sexp),last_spaces)->sexp)) s 
+(PC.pack sexp_and_spaces_after (fun((first_spaces, sexp),last_spaces)->sexp)) s
 
-and _compound_  s= 
+and _compound_  s=
 let packed = PC.disj_list [_List_;_Vector_;_DottedList_;_Quoted_;_QuasiQuoted_;_Unquoted_;_UnquoteAndSpliced_;] in
 packed s
 
-and _nested_compound_  s= 
+and _nested_compound_  s=
 let packed = PC.disj_list [_nested_DottedList_;_nested_List_;_nested_Vector_;_nested_Quoted_;_nested_QuasiQuoted_;_nested_Unquoted_;_nested_UnquoteAndSpliced_;] in
 packed s
 
@@ -322,8 +322,8 @@ let packed =PC.pack _Scomment_format_ (fun(x,y)->[]) in
 packed s
 
 
-and _line_comment_ s= 
-let _no_newline_ =(PC.range (char_of_int 32) (char_of_int 127)) in 
+and _line_comment_ s=
+let _no_newline_ =(PC.range (char_of_int 32) (char_of_int 127)) in
 let _comment_char_data_ =PC.guard _no_newline_ (fun(literal)-> ( literal!='\n')) in
 let _comment_full_data_ = PC.star _comment_char_data_ in
 let _comment_start_and_data_ = PC.caten _psikuda_ _comment_full_data_ in
@@ -332,7 +332,7 @@ let _line_Comment1_ =  PC.pack (PC.caten _comment_start_and_data_ _end_of_commen
 _line_Comment1_ s
 
 and _comments_and_spaces_ s=
-let _Space_ =  PC.pack (PC.nt_whitespace) (fun(x)->[]) in 
+let _Space_ =  PC.pack (PC.nt_whitespace) (fun(x)->[]) in
 let _Comment_ = PC.disj   _line_comment_ _Sexpr_Comment_ in
 let _Skip_ =  (PC.star (PC.disj _Comment_ _Space_ )) in
 _Skip_ s
@@ -347,10 +347,10 @@ in packed s
 
 and _List_ s =
 let a = PC.caten (PC.caten poteah (PC.star _Sexp_)) soger in
-let b =  PC.caten (PC.caten squarePoteah (PC.star _Sexp_)) squareSoger in 
+let b =  PC.caten (PC.caten squarePoteah (PC.star _Sexp_)) squareSoger in
 let aORb = PC.disj a b in
 let c = PC.caten (PC.caten poteah (PC.star _nested_Sexp_)) (PC.word "...") in
-let d =  PC.caten (PC.caten squarePoteah (PC.star _nested_Sexp_)) (PC.word "...") in 
+let d =  PC.caten (PC.caten squarePoteah (PC.star _nested_Sexp_)) (PC.word "...") in
 let cORd = PC.disj c d in
 let final = PC.disj aORb cORd  in
 let non_empty_list =  PC.pack final (fun((x,sexp),y)->List.fold_right (fun head tail -> Pair(head,tail))  sexp Nil) in
@@ -359,7 +359,7 @@ packed s
 
 and _nested_List_ s =
 let a = PC.caten (PC.caten poteah (PC.star _nested_Sexp_)) (PC.maybe soger) in
-let b =  PC.caten (PC.caten squarePoteah (PC.star _nested_Sexp_))(PC.maybe squareSoger)  in 
+let b =  PC.caten (PC.caten squarePoteah (PC.star _nested_Sexp_))(PC.maybe squareSoger)  in
 let aORb = PC.disj a b in
 let packed =  PC.pack aORb (fun((x,lst_sexp),y)->List.fold_right (fun n1 n2 -> Pair(n1,n2))  lst_sexp Nil) in
 packed s
@@ -390,7 +390,7 @@ packed s
 
 
 (*---------------------------- Vector --------------------------------------*)
-and _Vector_ s = 
+and _Vector_ s =
 let sulPoteah = PC.caten (PC.char '#') poteah in
 let sogerPoteahAndContent = PC.caten(PC.caten sulPoteah (PC.star _Sexp_)) soger in
 let sogerPoteahAndContent1 = PC.caten(PC.caten sulPoteah (PC.star _nested_Sexp_)) (PC.word "...") in
@@ -398,7 +398,7 @@ let a = PC.disj sogerPoteahAndContent sogerPoteahAndContent1 in
 let packed =  PC.pack a (fun(((sulamit,p),lst_sexp),y)-> Vector(lst_sexp)) in
 packed s
 
-and _nested_Vector_ s = 
+and _nested_Vector_ s =
 let sulPoteah = PC.caten (PC.char '#') poteah in
 let a = PC.caten sulPoteah (PC.star _nested_Sexp_) in
 let sogerPoteahAndContent =  PC.caten a (PC.maybe soger) in
@@ -408,12 +408,12 @@ packed s
 
 (*---------------------------- Quoted --------------------------------------*)
 
-and _Quoted_ s= 
+and _Quoted_ s=
 let prefix = (PC.caten (PC.char '\'') _Sexp_) in
 let packed = PC.pack  prefix (fun(x,s)->Pair(Symbol("quote"), Pair(s, Nil))) in
 packed s
 
-and _nested_Quoted_ s= 
+and _nested_Quoted_ s=
 let prefix = (PC.caten (PC.char '\'') _nested_Sexp_) in
 let packed = PC.pack  prefix (fun(x,s)->Pair(Symbol("quote"), Pair(s, Nil))) in
 packed s
@@ -430,12 +430,12 @@ packed s
 
 (*---------------------------- Unquoted --------------------------------------*)
 
-and _Unquoted_ s= 
+and _Unquoted_ s=
 let prefix = PC.caten (PC.char ',')  _Sexp_  in
 let packed = PC.pack prefix (fun(x,s)->Pair(Symbol("unquote"), Pair(s, Nil))) in
 packed s
 
-and _nested_Unquoted_ s= 
+and _nested_Unquoted_ s=
 let prefix = PC.caten (PC.char ',')  _nested_Sexp_  in
 let packed = PC.pack prefix (fun(x,s)->Pair(Symbol("unquote"), Pair(s, Nil))) in
 packed s
@@ -443,7 +443,7 @@ packed s
 and _UnquoteAndSpliced_ s =
 let prefix = PC.caten (PC.word ",@")  _Sexp_  in
 let packed = PC.pack prefix (fun(x,s)->Pair(Symbol("unquote-splicing"), Pair(s, Nil))) in
-packed s 
+packed s
 
 and _nested_UnquoteAndSpliced_ s =
 let prefix = PC.caten (PC.word ",@")  _nested_Sexp_  in
@@ -453,16 +453,14 @@ packed s ;;
 (*------------ spaces comments---------------------*)
 
 
-let read_sexpr string = 
+let read_sexpr string =
 let (a,b)=_Sexp_ (string_to_list (string)) in
 a;;
 
-let read_sexprs string = 
+let read_sexprs string =
 let (a,b)=(PC.star _Sexp_) (string_to_list (string)) in
 a;;
 
 
 
 end;; (* struct Reader *)
-
-
