@@ -257,7 +257,6 @@ PC.pack kleeneString (fun(x, (s,y))-> String(list_to_string s));;
 
 
 (*--------------Symbol----------------*)
-
 let _bang_ = PC.char '!';;
 let _dollar_ = PC.char '$';;
 let _exp_ = PC.char '^';;
@@ -296,9 +295,9 @@ let nt_close = PC.char ')';;
 let sexp_comment_prefix = PC.word  "#;";;
 let _psikuda_ = PC.char ';';;
 let poteah = PC.char '(' ;;
-let soger = PC.char ')' ;;
+let soger = PC.word ")" ;;
 let squarePoteah = PC.char '[' ;;
-let squareSoger = PC.char ']' ;;
+let squareSoger = PC.word "]" ;;
 let _nil_ = (*NOTICE THIS ADD SKIP HERE?*)
 let a = PC.caten poteah soger in
 PC.pack a (fun(s) -> Nil);;
@@ -310,30 +309,57 @@ let rec _Sexp_ s =
 let sexp_and_spaces = PC.caten (PC.caten _comments_and_spaces_ (PC.disj _atoms_ _compound_ )) _comments_and_spaces_ in
 (PC.pack sexp_and_spaces (fun((first_spaces, sexp),last_spaces)->sexp)) s 
 
+and _nested_Sexp_ s = 
+let sexp_and_spaces = PC.caten (PC.caten _comments_and_spaces_ (PC.disj _atoms_ _nested_compound_ )) _comments_and_spaces_ in
+(PC.pack sexp_and_spaces (fun((first_spaces, sexp),last_spaces)->sexp)) s 
 
 and _compound_  s= 
 let packed = PC.disj_list [_List_;_Vector_;_DottedList_;_Quoted_;_QuasiQuoted_;_Unquoted_;_UnquoteAndSpliced_;] in
 packed s
 
-
+and _nested_compound_  s= 
+let packed = PC.disj_list [_nested_DottedList_;_nested_List_;_nested_Vector_;_nested_Quoted_;_nested_QuasiQuoted_;_nested_Unquoted_;_nested_UnquoteAndSpliced_;] in
+packed s
 (*---------------------------- LIST --------------------------------------*)
 
 and _List_ s =
 let a = PC.caten (PC.caten poteah (PC.star _Sexp_)) soger in
 let b =  PC.caten (PC.caten squarePoteah (PC.star _Sexp_)) squareSoger in 
 let aORb = PC.disj a b in
-let packed =  PC.pack aORb (fun((x,lst_sexp),y)->List.fold_right (fun n1 n2 -> Pair(n1,n2))  lst_sexp Nil) in
+let c = PC.caten (PC.caten poteah (PC.star _nested_Sexp_)) (PC.word "...") in
+let d =  PC.caten (PC.caten squarePoteah (PC.star _nested_Sexp_)) (PC.word "...") in 
+let cORd = PC.disj c d in
+let final = PC.disj aORb cORd in
+let packed =  PC.pack final (fun((x,lst_sexp),y)->List.fold_right (fun n1 n2 -> Pair(n1,n2))  lst_sexp Nil) in
 packed s
 
-
+and _nested_List_ s =
+let a = PC.caten (PC.caten poteah (PC.star _nested_Sexp_)) (PC.maybe soger) in
+let b =  PC.caten (PC.caten squarePoteah (PC.star _nested_Sexp_))(PC.maybe squareSoger)  in 
+let aORb = PC.disj a b in
+let packed =  PC.pack aORb (fun((x,lst_sexp),y)->List.fold_right (fun n1 n2 -> Pair(n1,n2))  lst_sexp Nil) in
+packed s
 (*---------------------------- Dotted LIST --------------------------------------*)
 and _DottedList_ s=
 let a = PC.caten (PC.caten poteah (PC.plus _Sexp_)) (PC.char '.') in
-let b = PC.caten a _Sexp_ in
-let sogerPoteahAndContent =  PC.caten b soger in
+let sogerPoteahAndContent = PC.caten (PC.caten a _Sexp_) soger in
 let square_a = PC.caten (PC.caten squarePoteah (PC.plus _Sexp_)) (PC.char '.') in
-let square_b = PC.caten square_a _Sexp_ in
-let sogerPoteahAndContent1 =  PC.caten square_b squareSoger in
+let sogerPoteahAndContent1 = PC.caten(PC.caten square_a _Sexp_) squareSoger in
+let squareOrNot = PC.disj sogerPoteahAndContent sogerPoteahAndContent1 in
+let dots1 = PC.caten (PC.caten poteah (PC.plus _nested_Sexp_)) (PC.char '.') in
+let dots2 = PC.caten (PC.caten dots1 _nested_Sexp_) (PC.word "...") in
+let dots3 = PC.caten (PC.caten squarePoteah (PC.plus _nested_Sexp_)) (PC.char '.') in
+let dots4 = PC.caten (PC.caten dots3 _nested_Sexp_)  (PC.word "...") in
+let dotsSquareOrNot = PC.disj dots2 dots4 in
+let chino = (PC.disj  squareOrNot dotsSquareOrNot) in
+let packed =  PC.pack chino (fun((((p,lst_sexp),nekuda),sexp),soger)->List.fold_right (fun n1 n2 -> Pair(n1,n2)) lst_sexp sexp) in
+packed s
+
+and _nested_DottedList_ s =
+let a = PC.caten (PC.caten poteah (PC.plus _nested_Sexp_)) (PC.char '.') in
+let sogerPoteahAndContent = PC.caten (PC.caten a _nested_Sexp_) (PC.maybe soger) in
+let square_a = PC.caten (PC.caten squarePoteah (PC.plus _nested_Sexp_)) (PC.char '.') in
+let sogerPoteahAndContent1 =PC.caten( PC.caten square_a _nested_Sexp_) (PC.maybe squareSoger) in
 let squareOrNot = PC.disj sogerPoteahAndContent sogerPoteahAndContent1 in
 let packed =  PC.pack squareOrNot (fun((((p,lst_sexp),nekuda),sexp),soger)->List.fold_right (fun n1 n2 -> Pair(n1,n2)) lst_sexp sexp) in
 packed s
@@ -342,12 +368,18 @@ packed s
 (*---------------------------- Vector --------------------------------------*)
 and _Vector_ s = 
 let sulPoteah = PC.caten (PC.char '#') poteah in
-let a = PC.caten sulPoteah (PC.star _Sexp_) in
-let sogerPoteahAndContent =  PC.caten a soger in
-let packed =  PC.pack sogerPoteahAndContent (fun(((sulamit,p),lst_sexp),y)-> Vector(lst_sexp)) in
+let sogerPoteahAndContent = PC.caten(PC.caten sulPoteah (PC.star _Sexp_)) soger in
+let sogerPoteahAndContent1 = PC.caten(PC.caten sulPoteah (PC.star _nested_Sexp_)) (PC.word "...") in
+let a = PC.disj sogerPoteahAndContent sogerPoteahAndContent1 in
+let packed =  PC.pack a (fun(((sulamit,p),lst_sexp),y)-> Vector(lst_sexp)) in
 packed s
 
-
+and _nested_Vector_ s = 
+let sulPoteah = PC.caten (PC.char '#') poteah in
+let a = PC.caten sulPoteah (PC.star _nested_Sexp_) in
+let sogerPoteahAndContent =  PC.caten a (PC.maybe soger) in
+let packed =  PC.pack sogerPoteahAndContent (fun(((sulamit,p),lst_sexp),y)-> Vector(lst_sexp)) in
+packed s
     (*---------------------------- SEXPER COMMENT --------------------------------------*)
 
 and _Sexpr_Comment_ s  =
@@ -376,10 +408,18 @@ let prefix = (PC.caten (PC.char '\'') _Sexp_) in
 let packed = PC.pack  prefix (fun(x,s)->Pair(Symbol("quote"), Pair(s, Nil))) in
 packed s
 
-
+and _nested_Quoted_ s= 
+let prefix = (PC.caten (PC.char '\'') _nested_Sexp_) in
+let packed = PC.pack  prefix (fun(x,s)->Pair(Symbol("quote"), Pair(s, Nil))) in
+packed s
 (*---------------------------- QuasiQuoted --------------------------------------*)
 and _QuasiQuoted_ s=
 let prefix =  (PC.caten (PC.char '`') _Sexp_ ) in
+let packed = PC.pack prefix (fun(x,s)->Pair(Symbol("quasiquote"), Pair(s, Nil))) in
+packed s
+
+and _nested_QuasiQuoted_ s=
+let prefix =  (PC.caten (PC.char '`') _nested_Sexp_ ) in
 let packed = PC.pack prefix (fun(x,s)->Pair(Symbol("quasiquote"), Pair(s, Nil))) in
 packed s
 
@@ -390,10 +430,18 @@ let prefix = PC.caten (PC.char ',')  _Sexp_  in
 let packed = PC.pack prefix (fun(x,s)->Pair(Symbol("unquote"), Pair(s, Nil))) in
 packed s
 
-
+and _nested_Unquoted_ s= 
+let prefix = PC.caten (PC.char ',')  _nested_Sexp_  in
+let packed = PC.pack prefix (fun(x,s)->Pair(Symbol("unquote"), Pair(s, Nil))) in
+packed s
 (*---------------------------- ⟨UnquoteAndSpliced⟩ --------------------------------------*)
 and _UnquoteAndSpliced_ s =
 let prefix = PC.caten (PC.word ",@")  _Sexp_  in
+let packed = PC.pack prefix (fun(x,s)->Pair(Symbol("unquote-splicing"), Pair(s, Nil))) in
+packed s 
+
+and _nested_UnquoteAndSpliced_ s =
+let prefix = PC.caten (PC.word ",@")  _nested_Sexp_  in
 let packed = PC.pack prefix (fun(x,s)->Pair(Symbol("unquote-splicing"), Pair(s, Nil))) in
 packed s ;;
 
