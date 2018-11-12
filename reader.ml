@@ -452,14 +452,10 @@ let read_sexpr string =
 let (a,b)=_Sexp_ (string_to_list (string)) in
 a;;
 
-let rec _parse_next_expression_ _expression_ = 
-  match _expression_ with
- | [] -> []
- | _not_empty_list_ -> let head,tail = (_Sexp_ _expression_) in 
- head :: _parse_next_expression_ tail;;
-
 let read_sexprs string = 
-_parse_next_expression_ (string_to_list  string );;
+let (a,b)=(PC.star _Sexp_) (string_to_list (string)) in
+a;;
+
 
 
 end;; (* struct Reader *)
