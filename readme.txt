@@ -1,7 +1,10 @@
-Romy ayalon and Tal Baum
-
-install visual studio (there is a link inside):
-https://code.visualstudio.com/docs/setup/linux
-
-after install and into the program press ctrl+p and copy:
-ext install freebroccolo.reasonml
+Romy ayalon 311244701 and Tal Baum 204002828
+We assert that the work we submitted is 100% our own. We have not received any
+part from any other student in the class, nor have we give parts of it for use to others.
+Nor have we used code from other sources: Courses taught previously at this university,
+courses taught at other universities, various bits of code found on the internet, etc.
+We realize that should our code be found to contain code from other sources, that a
+formal case shall be opened against us with
+va’adat mishma’at
+, in pursuit of disciplinary
+action.
