@@ -68,11 +68,21 @@ let reserved_word_list =
 let tag_parse_expression sexpr = match sexpr with
 | Number (Int(sexpr)) -> Const(Sexpr(Number(Int(sexpr))))
 | Number (Float(sexpr)) -> Const(Sexpr(Number(Float(sexpr))))
-| Boolean (sexpr) -> if sexpr then Const("Bool true") else Const ("Bool false")
+| Boolean (sexpr) ->  Const(Sexpr(Bool (sexpr)))
+| Char(sexpr)-> Const(Sexpr(Char(sexpr)))
+| String(sexpr)-> Const (Sexpr(String(sexpr)))
+| Pair(Symbol("quote"), Pair(x, Nil)) -> Const(Sexpr(x))
+| Pair(Symbol("unquote"), Pair(x, Nil)) ->   Var(String(x))
+| Symbol(sexpr)->  if( not (List.mem sexpr reserved_word_list)) Var(String(sexpr))
+| Pair(Symbol("if"), Pair(test, Pair(dit, Pair(dif, Nil)))) ->
+  If(tag_parse test, tag_parse dit, tag_parse dif)
+| Pair(Symbol("if"), Pair(test, Pair(dit, Nil)))->
+  If(tag_parse test, tag_parse dit, Const (Void))
+
 
 raise X_not_yet_implemented;;
 
 let tag_parse_expressions sexpr = raise X_not_yet_implemented;;
 
-  
+List.mem 3 [1;2;3];;
 end;; (* struct Tag_Parser *)
