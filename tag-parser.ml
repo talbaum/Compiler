@@ -65,7 +65,12 @@ let reserved_word_list =
 
 (* work on the tag parser starts here *)
 
-let tag_parse_expression sexpr = raise X_not_yet_implemented;;
+let tag_parse_expression sexpr = match sexpr with
+| Number (Int(sexpr)) -> Const(Sexpr(Number(Int(sexpr))))
+| Number (Float(sexpr)) -> Const(Sexpr(Number(Float(sexpr))))
+| Boolean (sexpr) -> if sexpr then Const("Bool true") else Const ("Bool false")
+
+raise X_not_yet_implemented;;
 
 let tag_parse_expressions sexpr = raise X_not_yet_implemented;;
 
