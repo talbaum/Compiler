@@ -27,7 +27,8 @@ let rec sexpr_eq s1 s2 =
   match s1, s2 with
   | Bool(b1), Bool(b2) -> b1 = b2
   | Nil, Nil -> true
-  | Number(n1), Number(n2) -> n1 = n2
+  | Number(Float f1), Number(Float f2) -> abs_float(f1 -. f2) < 0.001
+  | Number(Int n1), Number(Int n2) -> n1 = n2
   | Char(c1), Char(c2) -> c1 = c2
   | String(s1), String(s2) -> s1 = s2
   | Symbol(s1), Symbol(s2) -> s1 = s2
@@ -43,7 +44,7 @@ end
 let normalize_scheme_symbol str =
   let s = string_to_list str in
   if (andmap
-	(fun ch -> (ch = (Char.lowercase ch)))
+	(fun ch -> (ch = (lowercase_ascii ch)))
 	s) then str
   else Printf.sprintf "|%s|" str;;
 
@@ -86,7 +87,7 @@ let _Integer_val_ =
     |_ -> number);;
 
 let _Integer_ =
-      PC.pack _Integer_val_ (fun ( number) -> Number(Int(int_of_string number)));; 
+      PC.pack _Integer_val_ (fun ( number) -> Number(Int(int_of_string number)));;
 
 
 
@@ -181,7 +182,7 @@ let _HexChar_ =
   let zxchars = PC.caten _x_ chars in
   PC.pack zxchars (fun (x,cl) -> Char(char_of_int((int_of_string(list_to_string('0'::'x'::cl))))));;
 
-let _newline_ = 
+let _newline_ =
 PC.pack (PC.word_ci "newline") (fun(x)-> Char(char_of_int (10)));;
 let _page_=PC.pack (PC.word_ci "page") (fun(x)-> Char(char_of_int (12))) ;;
 let _return_= PC.pack (PC.word_ci "return") (fun(x)-> Char(char_of_int (13)) );;
@@ -299,9 +300,9 @@ let _atoms_ = PC.disj_list[ _Boolean_;_Char_; _Number_ ; _String_; _Symbol_;];;
 let rec _Sexp_ s =
 let spaces_before_and_sexp= (PC.caten _comments_and_spaces_ (PC.disj _atoms_ _compound_ )) in
 let sexp_and_spaces_after = PC.caten spaces_before_and_sexp _comments_and_spaces_ in
-(PC.pack sexp_and_spaces_after (fun((first_spaces, sexp),last_spaces)->sexp)) s 
+(PC.pack sexp_and_spaces_after (fun((first_spaces, sexp),last_spaces)->sexp)) s
 
-and _nested_Sexp_ s = 
+and _nested_Sexp_ s =
 let spaces_before_and_sexp= (PC.caten _comments_and_spaces_ (PC.disj _atoms_ _nested_compound_ )) in
 let sexp_and_spaces_after = PC.caten spaces_before_and_sexp _comments_and_spaces_ in
 (PC.pack sexp_and_spaces_after (fun((first_spaces, sexp),last_spaces)->sexp)) s
@@ -460,7 +461,6 @@ a;;
 let read_sexprs string =
 let (a,b)=(PC.star _Sexp_) (string_to_list (string)) in
 a;;
-
 
 
 end;; (* struct Reader *)
