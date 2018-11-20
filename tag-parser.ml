@@ -65,6 +65,37 @@ let reserved_word_list =
 
 (* work on the tag parser starts here *)
 
+let rec is_improper_list list  = match list with
+|Pair(_ , Nil)->  false
+|Pair(car,cdr)  ->  is_improper_list cdr
+|vs -> true;;
+
+let rec find_last_element = function
+  | x::[] -> x
+  | _::xs -> find_last_element xs
+  | [] -> raise X_syntax_error;;
+
+let rec convert_sexpers_to_string_list list = match list with
+| Nil -> []
+| Pair(car, Nil)->(match car with
+      |Symbol(tmp)-> [tmp]
+      | _-> raise X_not_yet_implemented)
+| Symbol(car) -> [car]
+| Pair(car,cdr) -> (match car with 
+      | Symbol(car) ->  car :: (convert_sexpers_to_string_list cdr)
+      | _ -> raise X_not_yet_implemented)
+| _ -> raise X_not_yet_implemented;;
+
+
+
+
+let is_in_reserved_list = function
+  | Symbol(check_me)->   List.mem check_me reserved_word_list 
+  | _-> raise X_not_yet_implemented;;
+
+
+
+
 let rec tag_parse sexpr =  match sexpr with
 | Number (Int(a)) -> Const(Sexpr(Number(Int(a))))
 | Number (Float(a)) -> Const(Sexpr(Number(Float(a))))
@@ -73,33 +104,22 @@ let rec tag_parse sexpr =  match sexpr with
 | String(a)-> Const (Sexpr(String(a)))
 | Pair(Symbol("quote"), Pair(a, Nil)) -> Const(Sexpr(a))
 (* | Pair(Symbol("unquote"), Pair(a, Nil)) ->   Var(String(a)) *)
-| Symbol(a)->  if(List.mem a reserved_word_list) then raise X_not_yet_implemented else Var(a)
+| Symbol(a)->  if( List.mem a reserved_word_list)  then raise X_not_yet_implemented else Var(a)
 | Pair(Symbol("if"), Pair(test, Pair(dit, Pair(dif, Nil)))) ->
   If(tag_parse test, tag_parse dit, tag_parse dif)
 | Pair(Symbol("if"), Pair(test, Pair(dit, Nil)))->
   If(tag_parse test, tag_parse dit, Const (Void))
-|Pair(Symbol("define"), Pair())
-
-
-
 | Pair(Symbol("lambda"), Pair(args, body)) -> (match args with 
-    | Pair(car,cdr) -> if(is_improper_list car cdr body) then Lambdaopt((convert_pairs_to_string_list args), get_vs(convert_pairs_to_string_list args), tag_parse body)
-                      else{  LambdaSimple(convert_pairs_to_string_list car, cdr, body)}
-    | Symbol (vs) ->LambdaOpt([],get_vs(convert_pairs_to_string_list(vs)),tag_parse body) 
-    | _ -> raise X_not_yet_implemented)
+    | Nil -> LambdaSimple ([], tag_parse body)
+    | Pair(car,cdr) -> if(is_improper_list args) 
+                      then LambdaOpt((convert_sexpers_to_string_list args), find_last_element(convert_sexpers_to_string_list args), tag_parse body)
+                      else LambdaSimple(convert_sexpers_to_string_list args, tag_parse body)
+    |vs ->LambdaOpt([],find_last_element(convert_sexpers_to_string_list vs),tag_parse body))
 | _ -> raise X_not_yet_implemented;;
 
-let rec is_improper_list car cdr body  = match car, cdr with
-|Pair(_ , Nil)->  false
-|Pair(car,cdr)  ->  is_proper_list cdr
-|vs -> true
-
-let get_vs pairs = function
-
-
-(*
-let rec convert_pairs_to_string_list car ,cdr = match car, cdr with
-|String(car), String(cdr) -> car::convert_pairs_to_string_list cdr 
+(* TODO:
+1- ARGLIST NO ARGUMENT WHICH IS PART OF OF RESERVED List
+2- MAKE SURE NO DOUBLE ARG NAME
 *)
 
 let tag_parse_expression sexpr = tag_parse sexpr;;
