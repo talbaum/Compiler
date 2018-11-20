@@ -65,24 +65,44 @@ let reserved_word_list =
 
 (* work on the tag parser starts here *)
 
-let tag_parse_expression sexpr = match sexpr with
-| Number (Int(sexpr)) -> Const(Sexpr(Number(Int(sexpr))))
-| Number (Float(sexpr)) -> Const(Sexpr(Number(Float(sexpr))))
-| Boolean (sexpr) ->  Const(Sexpr(Bool (sexpr)))
-| Char(sexpr)-> Const(Sexpr(Char(sexpr)))
-| String(sexpr)-> Const (Sexpr(String(sexpr)))
-| Pair(Symbol("quote"), Pair(x, Nil)) -> Const(Sexpr(x))
-| Pair(Symbol("unquote"), Pair(x, Nil)) ->   Var(String(x))
-| Symbol(sexpr)->  if( not (List.mem sexpr reserved_word_list)) Var(String(sexpr))
+let rec tag_parse sexpr =  match sexpr with
+| Number (Int(a)) -> Const(Sexpr(Number(Int(a))))
+| Number (Float(a)) -> Const(Sexpr(Number(Float(a))))
+| Bool (a) ->  Const(Sexpr(Bool (a)))
+| Char(a)-> Const(Sexpr(Char(a)))
+| String(a)-> Const (Sexpr(String(a)))
+| Pair(Symbol("quote"), Pair(a, Nil)) -> Const(Sexpr(a))
+(* | Pair(Symbol("unquote"), Pair(a, Nil)) ->   Var(String(a)) *)
+| Symbol(a)->  if(List.mem a reserved_word_list) then raise X_not_yet_implemented else Var(a)
 | Pair(Symbol("if"), Pair(test, Pair(dit, Pair(dif, Nil)))) ->
   If(tag_parse test, tag_parse dit, tag_parse dif)
 | Pair(Symbol("if"), Pair(test, Pair(dit, Nil)))->
   If(tag_parse test, tag_parse dit, Const (Void))
+|Pair(Symbol("define"), Pair())
 
 
-raise X_not_yet_implemented;;
 
+| Pair(Symbol("lambda"), Pair(args, body)) -> (match args with 
+    | Pair(car,cdr) -> if(is_improper_list car cdr body) then Lambdaopt((convert_pairs_to_string_list args), get_vs(convert_pairs_to_string_list args), tag_parse body)
+                      else{  LambdaSimple(convert_pairs_to_string_list car, cdr, body)}
+    | Symbol (vs) ->LambdaOpt([],get_vs(convert_pairs_to_string_list(vs)),tag_parse body) 
+    | _ -> raise X_not_yet_implemented)
+| _ -> raise X_not_yet_implemented;;
+
+let rec is_improper_list car cdr body  = match car, cdr with
+|Pair(_ , Nil)->  false
+|Pair(car,cdr)  ->  is_proper_list cdr
+|vs -> true
+
+let get_vs pairs = function
+
+
+(*
+let rec convert_pairs_to_string_list car ,cdr = match car, cdr with
+|String(car), String(cdr) -> car::convert_pairs_to_string_list cdr 
+*)
+
+let tag_parse_expression sexpr = tag_parse sexpr;;
 let tag_parse_expressions sexpr = raise X_not_yet_implemented;;
 
-List.mem 3 [1;2;3];;
 end;; (* struct Tag_Parser *)
