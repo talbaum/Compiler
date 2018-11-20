@@ -64,6 +64,9 @@ let reserved_word_list =
    "unquote-splicing"];;  
 
 (* work on the tag parser starts here *)
+let is_in_reserved_list = function
+  | Symbol(check_me)->   List.mem check_me reserved_word_list 
+  | _-> raise X_not_yet_implemented;;
 
 let rec is_improper_list list  = match list with
 |Pair(_ , Nil)->  false
@@ -82,19 +85,15 @@ let rec convert_sexpers_to_string_list list = match list with
       | _-> raise X_not_yet_implemented)
 | Symbol(car) -> [car]
 | Pair(car,cdr) -> (match car with 
-      | Symbol(car) ->  car :: (convert_sexpers_to_string_list cdr)
+      | Symbol(car) -> if (is_in_reserved_list(Symbol(car))) then raise X_not_yet_implemented else car :: (convert_sexpers_to_string_list cdr)
       | _ -> raise X_not_yet_implemented)
 | _ -> raise X_not_yet_implemented;;
 
-
-
-
-let is_in_reserved_list = function
-  | Symbol(check_me)->   List.mem check_me reserved_word_list 
-  | _-> raise X_not_yet_implemented;;
-
-
-
+(*
+let is_unique_args args = 
+let unique_number_of_args = List.sort_uniq String.compare args in
+if (unique_number_of_args == List.length) then true else false;;
+*)
 
 let rec tag_parse sexpr =  match sexpr with
 | Number (Int(a)) -> Const(Sexpr(Number(Int(a))))
@@ -118,11 +117,19 @@ let rec tag_parse sexpr =  match sexpr with
 | _ -> raise X_not_yet_implemented;;
 
 (* TODO:
-1- ARGLIST NO ARGUMENT WHICH IS PART OF OF RESERVED List
-2- MAKE SURE NO DOUBLE ARG NAME
+1- MAKE SURE NO DOUBLE ARG NAME
 *)
 
 let tag_parse_expression sexpr = tag_parse sexpr;;
 let tag_parse_expressions sexpr = raise X_not_yet_implemented;;
 
 end;; (* struct Tag_Parser *)
+
+
+
+
+
+
+
+
+
