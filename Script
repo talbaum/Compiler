@@ -1,0 +1,4 @@
+utop
+#use "tag-parser.ml";;
+open Tag_Parser;;
+test "(define x 1)";;
