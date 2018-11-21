@@ -78,22 +78,22 @@ let rec find_last_element = function
   | _::xs -> find_last_element xs
   | [] -> raise X_syntax_error;;
 
-let rec convert_sexpers_to_string_list list = match list with
+let rec convert_to_string_list list = match list with
 | Nil -> []
 | Pair(car, Nil)->(match car with
-      |Symbol(tmp)-> [tmp]
+      |Symbol(tmp)->if (is_in_reserved_list(car))  then raise X_not_yet_implemented else [tmp]
       | _-> raise X_not_yet_implemented)
-| Symbol(car) -> [car]
+| Symbol(car) -> if (is_in_reserved_list(Symbol(car))) then raise X_not_yet_implemented else [car]
 | Pair(car,cdr) -> (match car with 
-      | Symbol(car) -> if (is_in_reserved_list(Symbol(car))) then raise X_not_yet_implemented else car :: (convert_sexpers_to_string_list cdr)
+      | Symbol(car) -> if (is_in_reserved_list(Symbol(car))) then raise X_not_yet_implemented else car :: (convert_to_string_list cdr)
       | _ -> raise X_not_yet_implemented)
 | _ -> raise X_not_yet_implemented;;
 
-(*
-let is_unique_args args = 
-let unique_number_of_args = List.sort_uniq String.compare args in
-if (unique_number_of_args == List.length) then true else false;;
-*)
+
+let is_not_duplicated_args args = 
+let unique_number_of_args = (List.sort_uniq String.compare args) in
+if (List.length unique_number_of_args == List.length args) then true else false;;
+
 
 let rec tag_parse sexpr =  match sexpr with
 | Number (Int(a)) -> Const(Sexpr(Number(Int(a))))
@@ -102,7 +102,6 @@ let rec tag_parse sexpr =  match sexpr with
 | Char(a)-> Const(Sexpr(Char(a)))
 | String(a)-> Const (Sexpr(String(a)))
 | Pair(Symbol("quote"), Pair(a, Nil)) -> Const(Sexpr(a))
-(* | Pair(Symbol("unquote"), Pair(a, Nil)) ->   Var(String(a)) *)
 | Symbol(a)->  if( List.mem a reserved_word_list)  then raise X_not_yet_implemented else Var(a)
 | Pair(Symbol("if"), Pair(test, Pair(dit, Pair(dif, Nil)))) ->
   If(tag_parse test, tag_parse dit, tag_parse dif)
@@ -110,18 +109,20 @@ let rec tag_parse sexpr =  match sexpr with
   If(tag_parse test, tag_parse dit, Const (Void))
 | Pair(Symbol("lambda"), Pair(args, body)) -> (match args with 
     | Nil -> LambdaSimple ([], tag_parse body)
-    | Pair(car,cdr) -> if(is_improper_list args) 
-                      then LambdaOpt((convert_sexpers_to_string_list args), find_last_element(convert_sexpers_to_string_list args), tag_parse body)
-                      else LambdaSimple(convert_sexpers_to_string_list args, tag_parse body)
-    |vs ->LambdaOpt([],find_last_element(convert_sexpers_to_string_list vs),tag_parse body))
-| _ -> raise X_not_yet_implemented;;
+    | Pair(car,cdr) -> let converted_args = convert_to_string_list args in 
+                      if (is_not_duplicated_args converted_args) then
+                          if(is_improper_list args)
+                          then LambdaOpt(converted_args, find_last_element(converted_args), tag_parse body)
+                          else LambdaSimple(converted_args, tag_parse body)
+    |vs ->LambdaOpt([],find_last_element(convert_to_string_list vs),tag_parse body)) 
+| Pair(Symbol "let",Pair(Pair(rib, ribs), Pair(body, Nil))) ->raise X_not_yet_implemented
+  | _ -> raise X_not_yet_implemented;;
 
-(* TODO:
-1- MAKE SURE NO DOUBLE ARG NAME
-*)
 
 let tag_parse_expression sexpr = tag_parse sexpr;;
 let tag_parse_expressions sexpr = raise X_not_yet_implemented;;
+
+tag_parse_expression (Reader.read_sexpr "#t");;
 
 end;; (* struct Tag_Parser *)
 
