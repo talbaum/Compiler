@@ -80,13 +80,9 @@ let rec find_last_element = function
 
 let rec convert_to_string_list list = match list with
 | Nil -> []
-| Pair(car, Nil)->(match car with
-      |Symbol(tmp)->if (is_in_reserved_list(car))  then raise X_not_yet_implemented else [tmp]
-      | _-> raise X_not_yet_implemented)
+| Pair(Symbol(car), Nil)-> if (is_in_reserved_list(Symbol(car)))  then raise X_not_yet_implemented else [car]
 | Symbol(car) -> if (is_in_reserved_list(Symbol(car))) then raise X_not_yet_implemented else [car]
-| Pair(car,cdr) -> (match car with 
-      | Symbol(car) -> if (is_in_reserved_list(Symbol(car))) then raise X_not_yet_implemented else car :: (convert_to_string_list cdr)
-      | _ -> raise X_not_yet_implemented)
+| Pair(Symbol(car),cdr) -> if (is_in_reserved_list(Symbol(car))) then raise X_not_yet_implemented else car :: (convert_to_string_list cdr)
 | _ -> raise X_not_yet_implemented;;
 
 
@@ -110,10 +106,11 @@ let rec tag_parse sexpr =  match sexpr with
 | Pair(Symbol("lambda"), Pair(args, body)) -> (match args with 
     | Nil -> LambdaSimple ([], tag_parse body)
     | Pair(car,cdr) -> let converted_args = convert_to_string_list args in 
-                      if (is_not_duplicated_args converted_args) then
+                      if (is_not_duplicated_args converted_args) then(
                           if(is_improper_list args)
                           then LambdaOpt(converted_args, find_last_element(converted_args), tag_parse body)
-                          else LambdaSimple(converted_args, tag_parse body)
+                          else LambdaSimple(converted_args, tag_parse body))
+                      else raise X_not_yet_implemented
     |vs ->LambdaOpt([],find_last_element(convert_to_string_list vs),tag_parse body)) 
 | Pair(Symbol "let",Pair(Pair(rib, ribs), Pair(body, Nil))) ->raise X_not_yet_implemented
   | _ -> raise X_not_yet_implemented;;
