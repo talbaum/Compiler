@@ -121,10 +121,20 @@ let rec tag_parse sexpr =  match sexpr with
 |Pair(Symbol("set!"),(Pair(Symbol(name) ,(Pair(expr, Nil)))))->set_tag_parser name expr
 |Pair(Symbol("begin"), Pair(exprs,Nil))-> seq_tag_parser exprs
 |Pair(Symbol("or"),Pair(exprs,Nil))->or_tag_parser exprs
-| Pair(Symbol("lambda"), Pair(args, body)) -> lambda_tag_parser args body
-  | Pair(Symbol "let",Pair(Pair(rib, ribs), Pair(body, Nil))) ->raise X_not_yet_implemented
-|Pair (Symbol (functionName), Pair(args , Nil))->applic_tag_parser functionName args
+|Pair(Symbol("lambda"), Pair(args, body)) -> lambda_tag_parser args body
+|Pair(Symbol "let",Pair(Pair(rib, ribs), Pair(body, Nil))) ->raise X_not_yet_implemented
+|Pair (Symbol (functionName), args)->applic_tag_parser functionName args
+(*|Pair(Symbol "and", Pair(sexpr, Nil)) -> and_macro_extension sexpr*)
 | _ -> raise X_syntax_error 
+
+(* ------------------------------- and -------------------------------------*)
+
+(*
+and and_macro_extension sexpr= 
+match  
+*)
+
+(* ------------------------------- lambda -------------------------------------*)
 
 and lambda_tag_parser args body= 
 (match args with 
@@ -140,7 +150,6 @@ and lambda_tag_parser args body=
 
 and map_tag_parse args = 
 List.map tag_parse (convert_to_sexpr_list args)
-
 
 (*---------------------------- or  ----------------------------------------*)
 and or_tag_parser exprs= 
