@@ -123,16 +123,27 @@ let rec tag_parse sexpr =  match sexpr with
 |Pair(Symbol("or"),Pair(exprs,Nil))->or_tag_parser exprs
 |Pair(Symbol("lambda"), Pair(args, body)) -> lambda_tag_parser args body
 |Pair(Symbol "let",Pair(Pair(rib, ribs), Pair(body, Nil))) ->raise X_not_yet_implemented
+|Pair(Symbol "and", exprs) -> and_macro_extension exprs
+|Pair(Symbol "define", Pair(Pair(Symbol var as tal, Pair(arglist, Nil)), Pair(body, Nil)))-> define_mit_macro_extension tal arglist body
 |Pair (Symbol (functionName), args)->applic_tag_parser functionName args
-(*|Pair(Symbol "and", Pair(sexpr, Nil)) -> and_macro_extension sexpr*)
 | _ -> raise X_syntax_error 
+
+(* ------------------------------- define -------------------------------------*)
+
+and define_mit_macro_extension var arglist body = 
+let parsed_lambda = tag_parse (Pair (Symbol("lambda"),(Pair(arglist,body)))) in
+Def(tag_parse var, parsed_lambda)
+
 
 (* ------------------------------- and -------------------------------------*)
 
-(*
-and and_macro_extension sexpr= 
-match  
-*)
+and and_macro_extension sexpr= match sexpr with
+|Nil -> Const(Sexpr(Bool(true)))
+|Pair(last_element,Nil) -> tag_parse last_element
+|Pair(car,cdr) -> let next_conds = Pair(((Symbol ("and")), cdr)) in
+ If(tag_parse car ,  tag_parse next_conds ,Const(Sexpr(Bool(false))))
+|_ -> raise X_syntax_error
+
 
 (* ------------------------------- lambda -------------------------------------*)
 
