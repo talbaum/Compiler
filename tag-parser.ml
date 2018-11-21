@@ -106,13 +106,13 @@ let rec tag_parse sexpr =  match sexpr with
 | Pair(Symbol("lambda"), Pair(args, body)) -> (match args with 
     | Nil -> LambdaSimple ([], tag_parse body)
     | Pair(car,cdr) -> let converted_args = convert_to_string_list args in 
-                      if (is_not_duplicated_args converted_args) then(
-                          if(is_improper_list args)
-                          then LambdaOpt(converted_args, find_last_element(converted_args), tag_parse body)
-                          else LambdaSimple(converted_args, tag_parse body))
+                      if (is_not_duplicated_args converted_args) then
+                              if(is_improper_list args)
+                              then LambdaOpt(converted_args, find_last_element(converted_args), tag_parse body)
+                              else LambdaSimple(converted_args, tag_parse body)
                       else raise X_not_yet_implemented
     |vs ->LambdaOpt([],find_last_element(convert_to_string_list vs),tag_parse body)) 
-| Pair(Symbol "let",Pair(Pair(rib, ribs), Pair(body, Nil))) ->raise X_not_yet_implemented
+  | Pair(Symbol "let",Pair(Pair(rib, ribs), Pair(body, Nil))) ->raise X_not_yet_implemented
   | _ -> raise X_not_yet_implemented;;
 
 
@@ -122,12 +122,4 @@ let tag_parse_expressions sexpr = raise X_not_yet_implemented;;
 tag_parse_expression (Reader.read_sexpr "#t");;
 
 end;; (* struct Tag_Parser *)
-
-
-
-
-
-
-
-
 
