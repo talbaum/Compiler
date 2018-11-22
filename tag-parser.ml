@@ -71,7 +71,7 @@ let reserved_word_list =
 
 let is_in_reserved_list = function
   | Symbol(check_me)->   List.mem check_me reserved_word_list 
-  | _-> raise X_not_yet_implemented;;
+  | _-> raise X_syntax_error;;
 
 let rec is_improper_list list  = match list with
 |Pair(_ , Nil)->  false
@@ -89,21 +89,20 @@ let rec convert_to_sexpr_list list = match list with
 | Pair(car, Nil)->[car]
 (*| car -> [car]*)
 | Pair(car,cdr) ->  car :: (convert_to_sexpr_list cdr)
-| _ -> raise X_not_yet_implemented;;
+| _ -> raise X_syntax_error;;
 
 
 let rec convert_to_string_list list = match list with
 | Nil -> []
-| Pair(Symbol(car), Nil)-> if (is_in_reserved_list(Symbol(car)))  then raise X_not_yet_implemented else [car]
-| Symbol(car) -> if (is_in_reserved_list(Symbol(car))) then raise X_not_yet_implemented else [car]
-| Pair(Symbol(car),cdr) -> if (is_in_reserved_list(Symbol(car))) then raise X_not_yet_implemented else car :: (convert_to_string_list cdr)
-| _ -> raise X_not_yet_implemented;;
-
-
+| Pair(Symbol(car), Nil)-> if (is_in_reserved_list(Symbol(car)))  then raise X_syntax_error else [car]
+| Symbol(car) -> if (is_in_reserved_list(Symbol(car))) then raise X_syntax_error else [car]
+| Pair(Symbol(car),cdr) -> if (is_in_reserved_list(Symbol(car))) then raise X_syntax_error else car :: (convert_to_string_list cdr)
+| _ -> raise X_syntax_error;;
 
 let is_not_duplicated_args args = 
 let unique_number_of_args = (List.sort_uniq String.compare args) in
 if (List.length unique_number_of_args == List.length args) then true else false;;
+
 
 let rec tag_parse sexpr =  match sexpr with
 | Number (Int(a)) -> Const(Sexpr(Number(Int(a))))
@@ -112,7 +111,7 @@ let rec tag_parse sexpr =  match sexpr with
 | Char(a)-> Const(Sexpr(Char(a)))
 | String(a)-> Const (Sexpr(String(a)))
 | Pair(Symbol("quote"), Pair(a, Nil)) -> Const(Sexpr(a))
-| Symbol(a)-> if( List.mem a reserved_word_list)  then raise X_not_yet_implemented else Var(a)
+| Symbol(a)-> if( List.mem a reserved_word_list)  then raise X_syntax_error else Var(a)
 | Pair(Symbol("if"), Pair(test, Pair(dit, Pair(dif, Nil)))) ->
   If(tag_parse test, tag_parse dit, tag_parse dif)
 | Pair(Symbol("if"), Pair(test, Pair(dit, Nil)))->
@@ -122,11 +121,33 @@ let rec tag_parse sexpr =  match sexpr with
 |Pair(Symbol("begin"), Pair(exprs,Nil))-> seq_tag_parser exprs
 |Pair(Symbol("or"),Pair(exprs,Nil))->or_tag_parser exprs
 |Pair(Symbol("lambda"), Pair(args, body)) -> lambda_tag_parser args body
-|Pair(Symbol "let",Pair(Pair(rib, ribs), Pair(body, Nil))) ->raise X_not_yet_implemented
+|Pair(Symbol("let"), Pair(args, body)) -> Const(Sexpr(Symbol("hey")))
+|Pair(Pair (Symbol "let",Pair(args, body)),Nil) -> handle_let args body
 |Pair(Symbol "and", exprs) -> and_macro_extension exprs
-|Pair(Symbol "define", Pair(Pair(Symbol var as tal, Pair(arglist, Nil)), Pair(body, Nil)))-> define_mit_macro_extension tal arglist body
+|Pair(Symbol "define", Pair(Pair(Symbol var as varname, Pair(arglist, Nil)), Pair(body, Nil)))-> define_mit_macro_extension varname arglist body
 |Pair (Symbol (functionName), args)->applic_tag_parser functionName args
-| _ -> raise X_syntax_error 
+| _ -> raise X_syntax_error
+
+(* ------------------------------- let -------------------------------------*)
+
+and create_arglist ribs = match ribs with
+|Pair(Pair (arg,value),Nil) ->  arg
+|Pair(Pair(arg,value),next_ribs) -> (Pair(arg, (create_arglist next_ribs))) 
+|_ -> raise X_syntax_error
+
+and create_valueslist ribs = match ribs with
+|Pair(Pair(arg,Pair(value,Nil)),Nil) -> Pair(value, Nil)
+|Pair(Pair(arg,Pair(value,Nil)),next_ribs)  ->  Pair(value , create_valueslist next_ribs)
+|_ -> raise X_syntax_error
+
+and handle_let ribs body  =
+macro_extension_let body (create_arglist  ribs) (create_valueslist ribs )
+
+
+and macro_extension_let body arglist valuesList = 
+ let parsed_lambda = tag_parse (Pair(Symbol("lambda"), (Pair(arglist, body))))  in
+        Applic(parsed_lambda, map_tag_parse valuesList) 
+
 
 (* ------------------------------- define -------------------------------------*)
 
@@ -149,18 +170,20 @@ and and_macro_extension sexpr= match sexpr with
 
 and lambda_tag_parser args body= 
 (match args with 
-    |Symbol(vs) -> LambdaOpt([], vs ,seq_tag_parser body)
-    | Pair(car,cdr) -> let converted_args = convert_to_string_list args in 
+    |Pair(car,cdr) -> let converted_args = convert_to_string_list args in 
                       if (is_not_duplicated_args converted_args) then
                               if(is_improper_list args)
                               then LambdaOpt(converted_args, find_last_element(converted_args), seq_tag_parser body)
                               else LambdaSimple(converted_args, seq_tag_parser body)
-                      else raise X_not_yet_implemented
-|_ -> raise X_not_yet_implemented) 
+                      else raise X_syntax_error
+  |Symbol(vs) -> LambdaOpt([], vs ,seq_tag_parser body)
+
+|_ -> raise X_syntax_error) 
 (* ------------------------------- map -------------------------------------*)
 
 and map_tag_parse args = 
 List.map tag_parse (convert_to_sexpr_list args)
+
 
 (*---------------------------- or  ----------------------------------------*)
 and or_tag_parser exprs= 
