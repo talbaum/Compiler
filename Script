@@ -4,13 +4,29 @@ open Tag_Parser;;
 test "(define x 1)";;
 
 
+
+above pattern matching:
+
+let without_last_arg list = 
+  let reversedList= List.rev list in
+  let no_first_arg = List.tl reversedList in
+  List.rev no_first_arg
+
+
 at pattern matching:
 
 |Pair (Symbol "let",Pair (Nil, body)) -> handle_let_no_args body
 |Pair (Symbol "let",Pair (args, body)) -> handle_let args body
+|Pair (Symbol "let*",Pair (args, body)) -> handle_let_star args body
 
-below it:
+below pattern matching::
+(* ------------------------------- let star-------------------------------------*)
 
+and handle_let_star args body  = match args with
+|Nil -> tag_parse (Pair (Symbol "let",Pair (Nil, body)))
+|Pair(single,Nil) -> tag_parse (Pair (Symbol "let",Pair (single, body)))
+|Pair(car,cdr) ->  tag_parse (Pair(Pair (Symbol "let",Pair (car, body)), Pair (Symbol "let*",Pair (cdr, body))))
+| _ -> raise X_syntax_error
 
 (* ------------------------------- let -------------------------------------*)
 
@@ -32,6 +48,20 @@ macro_extension_let body Nil Nil
 
 
 and macro_extension_let body arglist valuesList =  
+(*| Pair(rib, ribs) -> tag_parse ( Pair(Pair(Symbol("lambda"), Pair((makeVariablesList args), body)), (makeValuesList args)) )*)
 let parsed_lambda = tag_parse (Pair(Symbol("lambda"), (Pair(arglist, body))))  in
         Applic(parsed_lambda, map_tag_parse valuesList) 
+
+and lambda_tag_parser args body= 
+(match args with 
+    | Nil -> LambdaSimple ([],(needBegin body))
+    |Symbol(vs) -> LambdaOpt([], vs ,( needBegin body))
+    | Pair(car,cdr) -> let converted_args = convert_to_string_list args in 
+                      if (is_not_duplicated_args converted_args) then
+                              if(is_improper_list args)
+                              then LambdaOpt(without_last_arg(converted_args), find_last_element(converted_args),( needBegin body))
+                              else LambdaSimple(converted_args,( needBegin body))
+                      else raise X_syntax_error
+    |_ -> raise X_syntax_error) 
+
 
