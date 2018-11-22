@@ -6,3 +6,6 @@ test "(define x 1)";;
 > (display(sexpr->ocaml-pattern '(cond ((h? x) => (p q)))))
 Pair(Symbol "cond", Pair(Pair(Pair(Symbol "h?", Pair(Symbol "x", Nil)), Pair(Symbol "=>", Pair(Pair(Symbol "p", Pair(Symbol "q", Nil)), Nil))), Nil))
 > 
+
+> (display(sexpr->ocaml-pattern '(cond ((h? x) => (p q)) (else (h x y)))))
+Pair(Symbol "cond", Pair(Pair(Pair(Symbol "h?", Pair(Symbol "x", Nil)), Pair(Symbol "=>", Pair(Pair(Symbol "p", Pair(Symbol "q", Nil)), Nil))), Pair(Pair(Symbol "else", Pair(Pair(Symbol "h", Pair(Symbol "x", Pair(Symbol "y", Nil))), Nil)), Nil)))
