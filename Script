@@ -3,6 +3,6 @@ utop
 open Tag_Parser;;
 test "(define x 1)";;
 
-(display(sexpr->ocaml-pattern '(cond ( ( zero? n) (f x) (g y)))))
-Pair(Symbol "cond", Pair(Pair(Pair(Symbol "zero?", Pair(Symbol "n", Nil)), Pair(Pair(Symbol "f", Pair(Symbol "x", Nil)), Pair(Pair(Symbol "g", Pair(Symbol "y", Nil)), Nil))), Nil))
-
+> (display(sexpr->ocaml-pattern '(cond ((h? x) => (p q)))))
+Pair(Symbol "cond", Pair(Pair(Pair(Symbol "h?", Pair(Symbol "x", Nil)), Pair(Symbol "=>", Pair(Pair(Symbol "p", Pair(Symbol "q", Nil)), Nil))), Nil))
+> 
