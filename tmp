@@ -118,13 +118,13 @@ let rec tag_parse sexpr =  match sexpr with
 |Pair(Symbol("define"),(Pair(Symbol(name) ,(Pair(expr, Nil)))))-> define_tag_parser name expr
 |Pair(Symbol("set!"),(Pair(Symbol(name) ,(Pair(expr, Nil)))))->set_tag_parser name expr
 |Pair(Symbol("begin"), Pair(exprs,Nil))-> seq_tag_parser exprs
-|Pair(Symbol("or"),Pair(exprs,Nil))->or_tag_parser exprs
+|Pair(Symbol("or"),exprs)->or_tag_parser exprs
 | Pair(Symbol("lambda"), Pair(args, body)) -> lambda_tag_parser args body
 |Pair(Pair (Symbol "let",Pair(args, body)),Nil) -> handle_let args body
 |Pair(Symbol("quasiquote"),Pair(exprs,Nil))-> quasiquote_tag_parser exprs
 |Pair(Symbol("cond"),(Pair(rib, ribs)))->cond_tag_parser rib ribs
 | Symbol(a)-> if( List.mem a reserved_word_list)  then raise X_not_yet_implemented else Var(a)
-|Pair (Symbol (functionName), args)->applic_tag_parser functionName args
+|Pair (functionName, args)->applic_tag_parser functionName args
 | _ -> raise  X_syntax_error
 
 
@@ -241,7 +241,7 @@ let tagParsedExprs = map_tag_parse exprs in
 (*--------------------------- Applic ------------------------------------------- *)
 
 and applic_tag_parser functionName args = 
-let tag_parsed_functionName = tag_parse (Symbol(functionName)) in
+let tag_parsed_functionName = tag_parse functionName in
 let tag_parsed_args = map_tag_parse args in
 Applic(tag_parsed_functionName ,tag_parsed_args) 
 
@@ -249,7 +249,10 @@ Applic(tag_parsed_functionName ,tag_parsed_args)
 and define_tag_parser name expr =
 let tag_parsed_name = tag_parse(Symbol(name)) in
  let tag_parsed_expr = tag_parse expr in
- Def(tag_parsed_name,tag_parsed_expr)
+ (match tag_parsed_name with
+ |Var(x)->Def(tag_parsed_name,tag_parsed_expr)
+ |_->raise X_syntax_error)
+ 
 (*------------------------------ Set ----------------------------------------*)
 
 and set_tag_parser name expr = 
@@ -376,7 +379,7 @@ _assert 9.3 "(lambda (a b . c) (begin d e))" ( LambdaOpt (["a"; "b"], "c",  Seq 
 _assert 9.4 "(lambda (a b . c) (begin) )" ( LambdaOpt (["a"; "b"], "c",  Const Void));;
 _assertX 9.5 "(lambda (a b c d .a) e f)";;
 *)
-(*
+
 
 (*Lambda Variadic*)
 _assert 10.0 "(lambda a d)" ( LambdaOpt ([], "a", Var "d"));;
@@ -384,7 +387,7 @@ _assert 10.1 "(lambda a (begin d))" ( LambdaOpt ([], "a", Var "d"));;
 _assert 10.2 "(lambda a d e)" ( LambdaOpt ([], "a", Seq [Var "d"; Var "e"] ));;
 _assert 10.3 "(lambda a (begin d e))" ( LambdaOpt ([], "a",  Seq [Var "d"; Var "e"]));;
 _assert 10.4 "(lambda a (begin) )" ( LambdaOpt ([], "a",  Const Void));;
-*)
+
 (*Application*)
 _assert 11.0 "(+ 1 2 3)"
   (Applic (Var "+", [Const (Sexpr (Number (Int 1)));
@@ -395,7 +398,7 @@ _assert 11.1 "((lambda (v1 v2) c1 c2 c3) b1 b2)"
      (LambdaSimple (["v1"; "v2"],
 		    Seq [Var "c1"; Var "c2"; Var "c3"]),
       [Var "b1"; Var "b2"]));;
-(*
+
 (*Or*)
 _assert 12.0 "(or #t #f #\\a)"
   (Or
@@ -411,7 +414,7 @@ _assert 12.2 "(or)"
 (*Define*)
 _assert 13.0 "(define a b)" (Def (Var "a", Var "b"));;
 _assertX 13.1 "(define 5 b)";;
-_assertX 13.2 "(define if b)";;
+(*_assertX 13.2 "(define if b)";;
 
 (*Set*)
 _assert 14.0 "(set! a 5)" (Set (Var "a", Const (Sexpr (Number (Int 5)))));;
