@@ -3,9 +3,35 @@ utop
 open Tag_Parser;;
 test "(define x 1)";;
 
-> (display(sexpr->ocaml-pattern '(cond ((h? x) => (p q)))))
-Pair(Symbol "cond", Pair(Pair(Pair(Symbol "h?", Pair(Symbol "x", Nil)), Pair(Symbol "=>", Pair(Pair(Symbol "p", Pair(Symbol "q", Nil)), Nil))), Nil))
-> 
 
-> (display(sexpr->ocaml-pattern '(cond ((h? x) => (p q)) (else (h x y)))))
-Pair(Symbol "cond", Pair(Pair(Pair(Symbol "h?", Pair(Symbol "x", Nil)), Pair(Symbol "=>", Pair(Pair(Symbol "p", Pair(Symbol "q", Nil)), Nil))), Pair(Pair(Symbol "else", Pair(Pair(Symbol "h", Pair(Symbol "x", Pair(Symbol "y", Nil))), Nil)), Nil)))
+at pattern matching:
+
+|Pair (Symbol "let",Pair (Nil, body)) -> handle_let_no_args body
+|Pair (Symbol "let",Pair (args, body)) -> handle_let args body
+
+below it:
+
+
+(* ------------------------------- let -------------------------------------*)
+
+and create_arglist ribs = match ribs with
+|Pair(Pair (arg,value),Nil) ->  arg
+|Pair(Pair(arg,value),next_ribs) -> (Pair(arg, (create_arglist next_ribs))) 
+|_ -> raise X_syntax_error
+
+and create_valueslist ribs = match ribs with
+|Pair(Pair(arg,Pair(value,Nil)),Nil) -> Pair(value, Nil)
+|Pair(Pair(arg,Pair(value,Nil)),next_ribs)  ->  Pair(value , create_valueslist next_ribs)
+|_ -> raise X_syntax_error
+
+and handle_let args body  =
+ macro_extension_let body (create_arglist  args) (create_valueslist args )
+
+and handle_let_no_args body  = 
+macro_extension_let body Nil Nil
+
+
+and macro_extension_let body arglist valuesList =  
+let parsed_lambda = tag_parse (Pair(Symbol("lambda"), (Pair(arglist, body))))  in
+        Applic(parsed_lambda, map_tag_parse valuesList) 
+
