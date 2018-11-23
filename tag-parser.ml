@@ -71,7 +71,7 @@ let reserved_word_list =
 
 let is_in_reserved_list = function
   | Symbol(check_me)->   List.mem check_me reserved_word_list 
-  | _-> raise X_not_yet_implemented;;
+  | _-> raise X_syntax_error;;
 
 let rec is_improper_list list  = match list with
 |Pair(car,Nil)  ->  false
@@ -90,9 +90,9 @@ let rec find_last_element = function
 let rec convert_to_sexpr_list list = match list with
 | Nil -> []
 | Pair(car, Nil)->[car]
-(*| car -> [car]*)
+| Symbol(car) -> [Symbol(car)]
 | Pair(car,cdr) ->  car :: (convert_to_sexpr_list cdr)
-| _ -> raise X_not_yet_implemented;;
+| _ -> raise X_syntax_error;;
 
 
 let rec convert_to_string_list list = match list with
@@ -142,7 +142,8 @@ let rec tag_parse sexpr =  match sexpr with
 | Pair (functionName, args)->applic_tag_parser functionName args
 | _ -> raise  X_syntax_error
 
-(* ------------------ lambda----------------------- *)
+(*---------------------------------- lambda ---------------------------------------------------------*)
+
 
 and lambda_tag_parser args body= 
 (match args with 
@@ -214,7 +215,7 @@ tag_parse (
 (* ------------------------------- let -------------------------------------*)
 
 and create_arglist ribs = match ribs with
-|Pair(Pair (arg,value),Nil) ->  arg
+|Pair(Pair (arg,value),Nil) ->  Pair(arg,Nil)
 |Pair(Pair(arg,value),next_ribs) -> (Pair(arg, (create_arglist next_ribs))) 
 |Pair(arg, value) ->Pair(arg, Nil)
 |_ -> raise X_syntax_error
@@ -259,13 +260,6 @@ and quasiquote_tag_parser exprs=
 (*------------------------------------ function application -----------------------------------------*)
 and functionApplication functionName args =
 Applic((tag_parse(Symbol(functionName))) ,args)
-
-
-
-
-(*---------------------------------- lambda ---------------------------------------------------------*)
-
-
 
 
 (* ------------------------------- map -------------------------------------*)
@@ -375,7 +369,7 @@ let _assert num str out =
 	(Printf.sprintf
 	   "Failed %.2f with X_syntax_error: Tag parser failed to resolve expression '%s'"num str));;
 
-(*
+
 (*Boolean*)
 _assert 1.0 "#t" ( Const (Sexpr (Bool true)));;
 _assert 1.1 "#f" ( Const (Sexpr (Bool false)));;
@@ -412,7 +406,7 @@ _assert 7.0 "(if #t 2 \"abc\")"
 _assert 7.1 "(if #t 2)"
   (If (Const (Sexpr (Bool true)), Const (Sexpr (Number (Int 2))),
        (Const Void)));;
- *)
+ 
 (*SimpleLambda*)
 _assert 8.0 "(lambda (a b c) d)" (LambdaSimple (["a"; "b"; "c"], Var "d"));;
 _assert 8.1 "(lambda (a b c) (begin d))" (LambdaSimple (["a"; "b"; "c"], Var "d"));;
@@ -445,7 +439,7 @@ _assert 10.1 "(lambda a (begin d))" ( LambdaOpt ([], "a", Var "d"));;
 _assert 10.2 "(lambda a d e)" ( LambdaOpt ([], "a", Seq [Var "d"; Var "e"] ));;
 _assert 10.3 "(lambda a (begin d e))" ( LambdaOpt ([], "a",  Seq [Var "d"; Var "e"]));;
 _assert 10.4 "(lambda a (begin) )" ( LambdaOpt ([], "a",  Const Void));;
-(*
+
 (*Application*)
 _assert 11.0 "(+ 1 2 3)"
   (Applic (Var "+", [Const (Sexpr (Number (Int 1)));
@@ -503,11 +497,10 @@ _assert 17.2 "(let* ((e1 v1)(e2 v2)(e3 v3)) body)"
   (Applic (LambdaSimple (["e1"], Applic (LambdaSimple (["e2"], Applic (LambdaSimple (["e3"], Var "body"),
    [Var "v3"])), [Var "v2"])), [Var "v1"]));;
 
-
+(*
 (*MIT define*)
 _assert 18.0 "(define (var . arglst) . (body))" (Def (Var "var", LambdaOpt ([],"arglst", Applic (Var "body", []))));;
-*)
-(*
+
 (*Letrec*)
 _assert 19.0 "(letrec ((f1 e1)(f2 e2)(f3 e3)) body)"
   (_tag_string
