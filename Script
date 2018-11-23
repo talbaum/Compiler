@@ -2,7 +2,16 @@ utop
 #use "tag-parser.ml";;
 open Tag_Parser;;
 test "(define x 1)";;
+-------------------------------
+(let ((v1 b1)(v2 b2)) c1 c2 c3)
 
+
+Pair (Symbol "let",
+ Pair
+  (Pair (Pair (Symbol "v1", Pair (Symbol "b1", Nil)),
+    Pair (Pair (Symbol "v2", Pair (Symbol "b2", Nil)), Nil)),
+  Pair (Symbol "c1", Pair (Symbol "c2", Pair (Symbol "c3", Nil)))))
+-----------------------------------------------------------------------
 
 and handle_let_star args body  = match args with
 |Nil -> tag_parse (Pair (Symbol "let",Pair (Nil, body)))
