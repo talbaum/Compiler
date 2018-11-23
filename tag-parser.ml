@@ -156,10 +156,8 @@ and lambda_tag_parser args body=
                               then LambdaOpt(without_last_arg(converted_args), find_last_element(converted_args),( needBegin body))
                               else LambdaSimple(converted_args,( needBegin body))
                       else raise X_syntax_error
-
-
-
 |_ -> raise X_syntax_error)
+
 
 
 (*---------------------------- needBegin -----------------------------------*)
@@ -174,7 +172,7 @@ and needBegin body=
 and define_mit_macro_extension var arglist body = 
 (*tag_parse(Pair (Symbol "define", Pair (var, Pair (Pair (Symbol "lambda", Pair (arglist, body)), Nil))))
 *)
-let parsed_lambda = tag_parse (Pair (Symbol("lambda"),(Pair(arglist,Pair(body,Nil))))) in
+let parsed_lambda = tag_parse (Pair (Symbol("lambda"),(Pair(arglist,body)))) in
 Def(tag_parse var, parsed_lambda)
 
 
@@ -187,23 +185,44 @@ and and_macro_extension sexpr= match sexpr with
  If(tag_parse car ,  tag_parse next_conds ,Const(Sexpr(Bool(false))))
 |_ -> raise X_syntax_error
 (* ------------------------------- let star-------------------------------------*)
+(*
+Pair (Symbol "let*",
+ Pair
+ args=  (Pair (Symbol "e1", Pair (Symbol "v1", Nil)), Nil),
+ body = Pair (Symbol "body", Nil))
+
+
+Pair (Symbol "let*",
+ Pair
+  (Pair 
+  args = (Pair (Symbol "e1", Pair (Symbol "v1", Nil)),
+    Pair (Pair (Symbol "e2", Pair (Symbol "v2", Nil)),
+     Pair (Pair (Symbol "e3", Pair (Symbol "v3", Nil)), Nil))),
+ body = Pair (Symbol "body", Nil)))
+  )
+*)
 
 and handle_let_star args body  = match args with
 |Nil -> tag_parse (Pair (Symbol "let",Pair (Nil, body)))
-|Pair(single,Nil) -> tag_parse (Pair (Symbol "let",Pair (single, body)))
-|Pair(car,cdr) ->  tag_parse (Pair(Pair (Symbol "let",Pair (car, body)), Pair (Symbol "let*",Pair (cdr, body))))
+|Pair(Pair(single_var,single_val) as single ,Nil) -> tag_parse (Pair (Symbol "let",Pair (single, body)))
+|Pair(Pair(car,cdr) as args,other_pairs) ->  
+tag_parse (
+    Pair (Symbol "let",Pair (args, Pair(Pair((Symbol "let*",Pair (other_pairs, body))),Nil))))
 | _ -> raise X_syntax_error
+
 
 (* ------------------------------- let -------------------------------------*)
 
 and create_arglist ribs = match ribs with
-|Pair(Pair (arg,value),Nil) ->  Pair(arg,Nil)
+|Pair(Pair (arg,value),Nil) ->  arg
 |Pair(Pair(arg,value),next_ribs) -> (Pair(arg, (create_arglist next_ribs))) 
+|Pair(arg, value) ->Pair(arg, Nil)
 |_ -> raise X_syntax_error
 
 and create_valueslist ribs = match ribs with
-|Pair(Pair(arg,Pair(value,Nil)),Nil) -> Pair(value, Nil)
+|Pair(Pair(arg,Pair(value,Nil)),Nil) -> value
 |Pair(Pair(arg,Pair(value,Nil)),next_ribs)  ->  Pair(value , create_valueslist next_ribs)
+|Pair(arg, value) -> value
 |_ -> raise X_syntax_error
 
 and handle_let args body  =
@@ -213,12 +232,12 @@ and handle_let_no_args body  =
 macro_extension_let body Nil Nil
 
 
-and macro_extension_let body arglist valuesList =  
-tag_parse(Pair (Pair (Symbol "lambda", Pair (arglist, body)), valuesList))
+and macro_extension_let body arglist valuesList = 
+(* tag_parse(Pair (Pair (Symbol "lambda", Pair (arglist, body)), valuesList)) *)
 (*| Pair(rib, ribs) -> tag_parse ( Pair(Pair(Symbol("lambda"), Pair((makeVariablesList args), body)), (makeValuesList args)) )*)
-(*
+
 let parsed_lambda = tag_parse (Pair(Symbol("lambda"), (Pair(arglist, body))))  in
-        Applic(parsed_lambda, map_tag_parse valuesList) *)
+        Applic(parsed_lambda, map_tag_parse valuesList) 
 
  
 
@@ -356,6 +375,7 @@ let _assert num str out =
 	(Printf.sprintf
 	   "Failed %.2f with X_syntax_error: Tag parser failed to resolve expression '%s'"num str));;
 
+(*
 (*Boolean*)
 _assert 1.0 "#t" ( Const (Sexpr (Bool true)));;
 _assert 1.1 "#f" ( Const (Sexpr (Bool false)));;
@@ -392,7 +412,7 @@ _assert 7.0 "(if #t 2 \"abc\")"
 _assert 7.1 "(if #t 2)"
   (If (Const (Sexpr (Bool true)), Const (Sexpr (Number (Int 2))),
        (Const Void)));;
- 
+ *)
 (*SimpleLambda*)
 _assert 8.0 "(lambda (a b c) d)" (LambdaSimple (["a"; "b"; "c"], Var "d"));;
 _assert 8.1 "(lambda (a b c) (begin d))" (LambdaSimple (["a"; "b"; "c"], Var "d"));;
@@ -425,7 +445,7 @@ _assert 10.1 "(lambda a (begin d))" ( LambdaOpt ([], "a", Var "d"));;
 _assert 10.2 "(lambda a d e)" ( LambdaOpt ([], "a", Seq [Var "d"; Var "e"] ));;
 _assert 10.3 "(lambda a (begin d e))" ( LambdaOpt ([], "a",  Seq [Var "d"; Var "e"]));;
 _assert 10.4 "(lambda a (begin) )" ( LambdaOpt ([], "a",  Const Void));;
-
+(*
 (*Application*)
 _assert 11.0 "(+ 1 2 3)"
   (Applic (Var "+", [Const (Sexpr (Number (Int 1)));
@@ -478,15 +498,15 @@ _assert 16.2 "(and e1 e2 e3 e4)"
 _assert 17.0 "(let* () body)" (Applic (LambdaSimple ([], Var "body"), []));;
 
 _assert 17.1 "(let* ((e1 v1)) body)" (Applic (LambdaSimple (["e1"], Var "body"), [Var "v1"]));;
-(*
+
 _assert 17.2 "(let* ((e1 v1)(e2 v2)(e3 v3)) body)"
   (Applic (LambdaSimple (["e1"], Applic (LambdaSimple (["e2"], Applic (LambdaSimple (["e3"], Var "body"),
    [Var "v3"])), [Var "v2"])), [Var "v1"]));;
 
-*)
+
 (*MIT define*)
 _assert 18.0 "(define (var . arglst) . (body))" (Def (Var "var", LambdaOpt ([],"arglst", Applic (Var "body", []))));;
-
+*)
 (*
 (*Letrec*)
 _assert 19.0 "(letrec ((f1 e1)(f2 e2)(f3 e3)) body)"
