@@ -4,6 +4,23 @@ open Tag_Parser;;
 test "(define x 1)";;
 
 
+and handle_let_star args body  = match args with
+|Nil -> tag_parse (Pair (Symbol "let",Pair (Nil, body)))
+|Pair(Pair(single_var,single_val) as single ,Nil) -> tag_parse (Pair (Symbol "let",Pair (single, body)))
+|Pair(Pair(car,cdr) as args,other_pairs) ->  
+tag_parse (
+    Pair (Symbol "let",Pair (args, Pair(Pair((Symbol "let*",Pair (other_pairs, body))),Nil))))
+| _ -> raise X_syntax_error
+
+
+
+
+
+
+
+
+
+
 
 above pattern matching:
 
