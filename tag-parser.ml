@@ -74,9 +74,10 @@ let is_in_reserved_list = function
   | _-> raise X_not_yet_implemented;;
 
 let rec is_improper_list list  = match list with
-|Pair(_ , Nil)->  false
-|Pair(car,cdr)  ->  is_improper_list cdr
-|vs -> true;;
+|Pair(car,Nil)  ->  false
+|Pair(car,cdr) -> is_improper_list cdr
+| Nil -> false
+  | _ -> true;;
 
 let rec find_last_element = function
   | x::[] -> x
@@ -125,28 +126,55 @@ let rec tag_parse sexpr =  match sexpr with
   If(tag_parse test, tag_parse dit, tag_parse dif)
 | Pair(Symbol("if"), Pair(test, Pair(dit, Nil)))->
   If(tag_parse test, tag_parse dit, Const (Void))
-|Pair(Symbol("define"),(Pair(Symbol(name) ,(Pair(expr, Nil)))))-> define_tag_parser (Symbol(name)) expr
-|Pair(Symbol("set!"),(Pair(Symbol(name) ,(Pair(expr, Nil)))))->set_tag_parser name expr
-|Pair(Symbol("begin"), Pair(exprs,Nil))-> seq_tag_parser exprs
-|Pair(Symbol("or"),exprs)->or_tag_parser exprs
+| Pair(Symbol("define"),(Pair(Symbol(name) ,(Pair(expr, Nil)))))-> define_tag_parser (Symbol(name)) expr
+| Pair(Symbol("set!"),(Pair(Symbol(name) ,(Pair(expr, Nil)))))->set_tag_parser name expr
+| Pair(Symbol("begin"), Pair(exprs,Nil))-> seq_tag_parser exprs
+| Pair(Symbol("or"),exprs)->or_tag_parser exprs
 | Pair(Symbol("lambda"), Pair(args, body)) -> lambda_tag_parser args body
-
-|Pair (Symbol "let",Pair (Nil, body)) -> handle_let_no_args body
-|Pair (Symbol "let",Pair (args, body)) -> handle_let args body
-|Pair (Symbol "let*",Pair (args, body)) -> handle_let_star args body
-
-|Pair(Symbol("quasiquote"),Pair(exprs,Nil))-> quasiquote_tag_parser exprs
-|Pair(Symbol("cond"),ribs)->tag_parse (cond_tag_parser  ribs)
-|Pair(Symbol "and", exprs) -> and_macro_extension exprs
-|Pair(Symbol "define", Pair(Pair(Symbol var as varname, Pair(arglist, Nil)), Pair(body, Nil)))-> define_mit_macro_extension varname arglist body
+| Pair (Symbol "let",Pair (Nil, body)) -> handle_let_no_args body
+| Pair (Symbol "let",Pair (args, body)) -> handle_let args body
+| Pair (Symbol "let*",Pair (args, body)) -> handle_let_star args body
+| Pair(Symbol("quasiquote"),Pair(exprs,Nil))-> quasiquote_tag_parser exprs
+(* | Pair(Symbol("cond"),ribs)->tag_parse (cond_tag_parser  ribs) *)
+| Pair(Symbol "and", exprs) -> and_macro_extension exprs
+| Pair(Symbol "define", Pair(Pair(varname, arglist), body))-> define_mit_macro_extension varname arglist body
 | Symbol(a)-> if( List.mem a reserved_word_list)  then raise X_syntax_error else Var(a)
-|Pair (functionName, args)->applic_tag_parser functionName args
+| Pair (functionName, args)->applic_tag_parser functionName args
 | _ -> raise  X_syntax_error
+
+(* ------------------ lambda----------------------- *)
+
+and lambda_tag_parser args body= 
+(match args with 
+    | Nil -> LambdaSimple ([],(needBegin body))
+    |Symbol(vs) -> LambdaOpt([], vs ,( needBegin body))
+    | Pair(car,Nil) -> let converted_args = convert_to_string_list args in 
+                           LambdaSimple(converted_args,( needBegin body))
+    | Pair(car,cdr) -> let converted_args = convert_to_string_list args in 
+                      if (is_not_duplicated_args converted_args) then
+                              if(is_improper_list args)
+                              then LambdaOpt(without_last_arg(converted_args), find_last_element(converted_args),( needBegin body))
+                              else LambdaSimple(converted_args,( needBegin body))
+                      else raise X_syntax_error
+
+
+
+|_ -> raise X_syntax_error)
+
+
+(*---------------------------- needBegin -----------------------------------*)
+and needBegin body=
+(match body with
+|Pair (Pair (Symbol "begin", x), Nil)->seq_tag_parser x
+|_->tag_parse (Pair(Symbol("begin"), Pair(body,Nil))))
+
 
 (* ------------------------------- define -------------------------------------*)
 
 and define_mit_macro_extension var arglist body = 
-let parsed_lambda = tag_parse (Pair (Symbol("lambda"),(Pair(arglist,body)))) in
+(*tag_parse(Pair (Symbol "define", Pair (var, Pair (Pair (Symbol "lambda", Pair (arglist, body)), Nil))))
+*)
+let parsed_lambda = tag_parse (Pair (Symbol("lambda"),(Pair(arglist,Pair(body,Nil))))) in
 Def(tag_parse var, parsed_lambda)
 
 
@@ -169,7 +197,7 @@ and handle_let_star args body  = match args with
 (* ------------------------------- let -------------------------------------*)
 
 and create_arglist ribs = match ribs with
-|Pair(Pair (arg,value),Nil) ->  arg
+|Pair(Pair (arg,value),Nil) ->  Pair(arg,Nil)
 |Pair(Pair(arg,value),next_ribs) -> (Pair(arg, (create_arglist next_ribs))) 
 |_ -> raise X_syntax_error
 
@@ -186,30 +214,14 @@ macro_extension_let body Nil Nil
 
 
 and macro_extension_let body arglist valuesList =  
+tag_parse(Pair (Pair (Symbol "lambda", Pair (arglist, body)), valuesList))
 (*| Pair(rib, ribs) -> tag_parse ( Pair(Pair(Symbol("lambda"), Pair((makeVariablesList args), body)), (makeValuesList args)) )*)
+(*
 let parsed_lambda = tag_parse (Pair(Symbol("lambda"), (Pair(arglist, body))))  in
-        Applic(parsed_lambda, map_tag_parse valuesList) 
+        Applic(parsed_lambda, map_tag_parse valuesList) *)
 
  
 
-(* -------------------------------------- cond ----------------------------------------------------------*)
-and cond_tag_parser  ribs= 
-(match ribs with
-|Pair(Pair(test,Pair(body1,Pair(body2,Nil))),Nil)-> (Pair(Symbol("if"),Pair(test,Pair(Pair(Symbol("begin"),Pair(body1,Pair(body2,Nil))),Nil))))
-|Pair(Pair(test,Pair(body1,Pair(body2,Nil))),rest)->(Pair(Symbol("if"),Pair(test,Pair(Pair(Symbol("begin"),Pair(body1,Pair(body2,Nil))),Pair((cond_tag_parser rest),Nil)))))
-|Pair(Pair(Symbol "else",body),Nil)->cond3_else_tag_parser body
-| _ -> raise  X_syntax_error)
-
-and cond3_else_tag_parser  body= 
-tag_parse (Pair(Symbol("begin"), Pair(body,Nil)))
-
-(*
-and cond1_tag_parser test  ribs =
-(match ribs with
-|Pair(test,Pair(body1,Pair(body2,Nil))) ->tag_parse (Pair(Symbol("if"), Pair( test, Pair( (Pair(Symbol("begin"), Pair(body1,Pair(body2,Nil)))),Nil))))
-|Pair(test,Pair(body1,Pair(body2,Nil)))->tag_parse (Pair(Symbol("if"), Pair( test, Pair( (Pair(Symbol("begin"), Pair(body1,Pair(body2,Nil)))),(Pair(Pair(Symbol("cond"),(Pair(ribs, Nil))),Nil ))))
-))
-|_->raise X_syntax_error)*)
 
 (*---------------------------------- quasiquote ---------------------------------------------------------*)
 and quasiquote_tag_parser exprs= 
@@ -234,24 +246,6 @@ Applic((tag_parse(Symbol(functionName))) ,args)
 
 (*---------------------------------- lambda ---------------------------------------------------------*)
 
-and lambda_tag_parser args body= 
-(match args with 
-    | Nil -> LambdaSimple ([],(needBegin body))
-    |Symbol(vs) -> LambdaOpt([], vs ,( needBegin body))
-    | Pair(car,cdr) -> let converted_args = convert_to_string_list args in 
-                      if (is_not_duplicated_args converted_args) then
-                              if(is_improper_list args)
-                              then LambdaOpt(without_last_arg(converted_args), find_last_element(converted_args),( needBegin body))
-                              else LambdaSimple(converted_args,( needBegin body))
-                      else raise X_syntax_error
-|_ -> raise X_syntax_error)
-
-
-(*---------------------------- needBegin -----------------------------------*)
-and needBegin body=
-(match body with
-|Pair (Pair (Symbol "begin", x), Nil)->seq_tag_parser x
-|_->tag_parse (Pair(Symbol("begin"), Pair(body,Nil))))
 
 
 
@@ -362,7 +356,7 @@ let _assert num str out =
 	(Printf.sprintf
 	   "Failed %.2f with X_syntax_error: Tag parser failed to resolve expression '%s'"num str));;
 
-(*Boolean*)(*
+(*Boolean*)
 _assert 1.0 "#t" ( Const (Sexpr (Bool true)));;
 _assert 1.1 "#f" ( Const (Sexpr (Bool false)));;
 
@@ -398,7 +392,7 @@ _assert 7.0 "(if #t 2 \"abc\")"
 _assert 7.1 "(if #t 2)"
   (If (Const (Sexpr (Bool true)), Const (Sexpr (Number (Int 2))),
        (Const Void)));;
-  
+ 
 (*SimpleLambda*)
 _assert 8.0 "(lambda (a b c) d)" (LambdaSimple (["a"; "b"; "c"], Var "d"));;
 _assert 8.1 "(lambda (a b c) (begin d))" (LambdaSimple (["a"; "b"; "c"], Var "d"));;
@@ -413,8 +407,8 @@ _assert 8.4 "(lambda (a b c) (begin))" (LambdaSimple (["a"; "b"; "c"], Const Voi
 _assertX 8.5 "(lambda (a b c d d) e f)";;
 
 _assert 8.6 "(lambda () e f)" (LambdaSimple( [], Seq [Var "e"; Var "f"])) ;;
-*)
-(*
+
+
 (*LambdaOpt*)
 _assert 9.0 "(lambda (a b . c) d)" ( LambdaOpt (["a"; "b"], "c", Var "d"));;
 _assert 9.1 "(lambda (a b . c) (begin d))" ( LambdaOpt (["a"; "b"], "c", Var "d"));;
@@ -422,17 +416,17 @@ _assert 9.2 "(lambda (a b . c) d e)" ( LambdaOpt (["a"; "b"], "c",  Seq [Var "d"
 _assert 9.3 "(lambda (a b . c) (begin d e))" ( LambdaOpt (["a"; "b"], "c",  Seq [Var "d"; Var "e"]));;
 _assert 9.4 "(lambda (a b . c) (begin) )" ( LambdaOpt (["a"; "b"], "c",  Const Void));;
 _assertX 9.5 "(lambda (a b c d .a) e f)";;
-*)
 
 
-(*Lambda Variadic*)(*
+
+(*Lambda Variadic*)
 _assert 10.0 "(lambda a d)" ( LambdaOpt ([], "a", Var "d"));;
 _assert 10.1 "(lambda a (begin d))" ( LambdaOpt ([], "a", Var "d"));;
 _assert 10.2 "(lambda a d e)" ( LambdaOpt ([], "a", Seq [Var "d"; Var "e"] ));;
 _assert 10.3 "(lambda a (begin d e))" ( LambdaOpt ([], "a",  Seq [Var "d"; Var "e"]));;
 _assert 10.4 "(lambda a (begin) )" ( LambdaOpt ([], "a",  Const Void));;
-*)
-(*Application*)(*
+
+(*Application*)
 _assert 11.0 "(+ 1 2 3)"
   (Applic (Var "+", [Const (Sexpr (Number (Int 1)));
 		     Const (Sexpr (Number (Int 2)));
@@ -442,8 +436,8 @@ _assert 11.1 "((lambda (v1 v2) c1 c2 c3) b1 b2)"
      (LambdaSimple (["v1"; "v2"],
 		    Seq [Var "c1"; Var "c2"; Var "c3"]),
       [Var "b1"; Var "b2"]));;
-*)
-(*Or*)(*
+
+(*Or*)
 _assert 12.0 "(or #t #f #\\a)"
   (Or
      [Const (Sexpr (Bool true)); Const (Sexpr (Bool false));
@@ -464,34 +458,36 @@ _assertX 13.2 "(define if b)";;
 _assert 14.0 "(set! a 5)" (Set (Var "a", Const (Sexpr (Number (Int 5)))));;
 _assertX 14.1 "(set! define 5)";;
 _assertX 14.2 "(set! \"string\" 5)";;
-*)
-(*
+
+
 (*Let*)
 _assert 15.0 "(let ((v1 b1)(v2 b2)) c1 c2 c3)"
   (Applic (LambdaSimple (["v1"; "v2"], Seq [Var "c1"; Var "c2"; Var "c3"]), [Var "b1"; Var "b2"]));;
 _assert 15.1 "(let () c1 c2)" (Applic (LambdaSimple ([], Seq [Var "c1"; Var "c2"]), []));;
-*)
-(*And*)(*
+
+(*And*)
 _assert 16.0 "(and)" (Const (Sexpr (Bool true)));;
 _assert 16.1 "(and e1)" (Var "e1");;
 _assert 16.2 "(and e1 e2 e3 e4)"
   (If (Var "e1",
        If (Var "e2", If (Var "e3", Var "e4", Const (Sexpr (Bool false))),
 	   Const (Sexpr (Bool false))),
-       Const (Sexpr (Bool false))));;*)
-(*
-(*Let* *)
+       Const (Sexpr (Bool false))));;
+
+(*Let* *) 
 _assert 17.0 "(let* () body)" (Applic (LambdaSimple ([], Var "body"), []));;
+
 _assert 17.1 "(let* ((e1 v1)) body)" (Applic (LambdaSimple (["e1"], Var "body"), [Var "v1"]));;
+(*
 _assert 17.2 "(let* ((e1 v1)(e2 v2)(e3 v3)) body)"
   (Applic (LambdaSimple (["e1"], Applic (LambdaSimple (["e2"], Applic (LambdaSimple (["e3"], Var "body"),
    [Var "v3"])), [Var "v2"])), [Var "v1"]));;
 
-
+*)
 (*MIT define*)
 _assert 18.0 "(define (var . arglst) . (body))" (Def (Var "var", LambdaOpt ([],"arglst", Applic (Var "body", []))));;
 
-
+(*
 (*Letrec*)
 _assert 19.0 "(letrec ((f1 e1)(f2 e2)(f3 e3)) body)"
   (_tag_string
