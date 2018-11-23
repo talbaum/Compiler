@@ -5,6 +5,48 @@ test "(define x 1)";;
 -------------------------------
 (let ((v1 b1)(v2 b2)) c1 c2 c3)
 
+(* ------------------------------ shuli i love you ---------------------------------------------*)
+
+
+(* -------------------------------------- cond ----------------------------------------------------------*)
+
+and rib1_cond_tag_parser ribs = 
+rib1_cond_tag_parser ribs
+(*|->rib2_cond_tag_parser ribs
+|->rib3_cond_tag_parser ribs
+|_->raise X_syntax_error)*)
+
+(*
+and build_rib2 exp_k exp_f=
+Pair (Symbol "let",Pair (Pair(   (Pair(Symbol("value"), exp_k))  ,Pair(Symbol("f"), Pair(Symbol("lambda"), Pair(Nil, exp_f)))), Pair(Symbol("if"), Pair(Symbol("value"), Applic(Symbol("value"),Symbol("f"))))))
+*)
+
+and  cond_tag_parser rib =
+(match rib with
+(*|Pair(Pair(exp_k,Pair(Symbol("=>"),exp_f)), Nil)->(tag_parse (build_rib2))
+|Pair(Pair(exp_k,Pair(Symbol("=>"),exp_f)), rest)->tag_parse (Pair(Pair(Pair (Symbol "let",Pair (Pair(Pair(Symbol("value"),exp_k),Pair(Symbol("f"),Pair(Symbol("lambda"), Pair(Nil, exp_f))),Pair(Symbol("rest"),Pair(Symbol("lambda"), Pair(Nil, rest))))))),Pair(Symbol("if"), Pair(Symbol("value"), Pair(Symbol("f"), Pair(Symbol("rest"), Nil))))))
+*)|Pair(Pair(Symbol("else"),seq),rest)->tag_parse (Pair(Symbol("begin"),seq))
+|Pair(Pair(test,seq), Nil)-> tag_parse(Pair(Symbol("if"), Pair(test, Pair((Pair(Symbol("begin"), seq)), Nil))))
+|Pair(Pair(test,seq), rest)-> tag_parse (Pair(Symbol("if"), Pair(test, Pair(Pair(Symbol("begin"),seq), (Pair((Pair(Symbol("cond"),rest)),  Nil))))))
+|_->raise X_syntax_error)
+
+
+(*--------------------------- seq --------------------------------------------- *)
+and seq_tag_parser exprs = 
+(match exprs with
+    |Nil->Const(Void)
+    |Pair(Symbol(x) as chino ,Nil)->tag_parse chino
+    |_->Seq(map_tag_parse exprs))
+
+
+
+
+
+
+
+
+
+
 
 Pair (Symbol "let",
  Pair
