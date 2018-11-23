@@ -128,19 +128,33 @@ let rec tag_parse sexpr =  match sexpr with
   If(tag_parse test, tag_parse dit, Const (Void))
 | Pair(Symbol("define"),(Pair(Symbol(name) ,(Pair(expr, Nil)))))-> define_tag_parser (Symbol(name)) expr
 | Pair(Symbol("set!"),(Pair(Symbol(name) ,(Pair(expr, Nil)))))->set_tag_parser name expr
-| Pair(Symbol("begin"), Pair(exprs,Nil))-> seq_tag_parser exprs
+| Pair(Symbol("begin"), exprs)-> seq_tag_parser exprs
 | Pair(Symbol("or"),exprs)->or_tag_parser exprs
 | Pair(Symbol("lambda"), Pair(args, body)) -> lambda_tag_parser args body
 | Pair (Symbol "let",Pair (Nil, body)) -> handle_let_no_args body
 | Pair (Symbol "let",Pair (args, body)) -> handle_let args body
 | Pair (Symbol "let*",Pair (args, body)) -> handle_let_star args body
 | Pair(Symbol("quasiquote"),Pair(exprs,Nil))-> quasiquote_tag_parser exprs
-(* | Pair(Symbol("cond"),ribs)->tag_parse (cond_tag_parser  ribs) *)
+| Pair(Symbol("cond"),ribs)-> (cond_tag_parser  ribs)
 | Pair(Symbol "and", exprs) -> and_macro_extension exprs
 | Pair(Symbol "define", Pair(Pair(varname, arglist), body))-> define_mit_macro_extension varname arglist body
 | Symbol(a)-> if( List.mem a reserved_word_list)  then raise X_syntax_error else Var(a)
 | Pair (functionName, args)->applic_tag_parser functionName args
 | _ -> raise  X_syntax_error
+
+
+
+(* -------------------------------------- cond ----------------------------------------------------------*)
+
+
+
+and  cond_tag_parser rib =
+(match rib with
+|Pair(Pair(Symbol("else"),seq),rest)->tag_parse (Pair(Symbol("begin"),seq))
+|Pair(Pair(test,seq), Nil)-> tag_parse(Pair(Symbol("if"), Pair(test, Pair((Pair(Symbol("begin"), seq)), Nil))))
+|Pair(Pair(test,seq), rest)-> tag_parse (Pair(Symbol("if"), Pair(test, Pair(Pair(Symbol("begin"),seq), (Pair((Pair(Symbol("cond"),rest)),  Nil))))))
+|_->raise X_syntax_error)
+
 
 (*---------------------------------- lambda ---------------------------------------------------------*)
 
@@ -165,7 +179,7 @@ and lambda_tag_parser args body=
 and needBegin body=
 (match body with
 |Pair (Pair (Symbol "begin", x), Nil)->seq_tag_parser x
-|_->tag_parse (Pair(Symbol("begin"), Pair(body,Nil))))
+|_->tag_parse (Pair(Symbol("begin"), body)))
 
 
 (* ------------------------------- define -------------------------------------*)
@@ -498,8 +512,6 @@ _assert 17.2 "(let* ((e1 v1)(e2 v2)(e3 v3)) body)"
    [Var "v3"])), [Var "v2"])), [Var "v1"]));;
 
 (*
-(*MIT define*)
-_assert 18.0 "(define (var . arglst) . (body))" (Def (Var "var", LambdaOpt ([],"arglst", Applic (Var "body", []))));;
 
 (*Letrec*)
 _assert 19.0 "(letrec ((f1 e1)(f2 e2)(f3 e3)) body)"
@@ -538,17 +550,6 @@ _assert 20.15 "`" (_tag_string "");;
 _assert 20.16 "`" (_tag_string "");;
   _assert 20.17 "`" (_tag_string "");;*)
 
-(*
-(*Cond*)
-_assert 21.0 "(cond (a => b)(c => d))"
-  (_tag_string
-     "(let ((value a)(f (lambda () b)))
-        (if value
-          ((f) value)
-          (let ((value c)(f (lambda () d)))
-            (if value
-             ((f) value)))))");;
-
 _assert 21.1 "(cond (p1 e1 e2) (p2 e3 e4) (p3 e4 e5))"
   (_tag_string
      "(if p1
@@ -566,6 +567,6 @@ _assert 21.2 "(cond (p1 e1 e2) (p2 e3 e4) (else e5 e6) (BAD BAD BAD))"
           (begin e3 e4)
           (begin e5 e6)))");;
 
-*)
+
 end;; (* struct Tag_Parser *)
 
