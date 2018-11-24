@@ -132,6 +132,7 @@ let rec tag_parse sexpr =  match sexpr with
 | Pair (Symbol "let",Pair (Nil, body)) -> handle_let_no_args body
 | Pair (Symbol "let",Pair (args, body)) -> handle_let args body
 | Pair (Symbol "let*",Pair (args, body)) -> handle_let_star args body
+| Pair (Symbol "letrec",Pair (args, body)) -> handle_letrec args body
 | Pair(Symbol("quasiquote"),Pair(exprs,Nil))-> quasiquote_tag_parser exprs
 | Pair(Symbol("cond"),ribs)-> (cond_tag_parser  ribs)
 | Pair(Symbol "and", exprs) -> and_macro_extension exprs
@@ -142,9 +143,91 @@ let rec tag_parse sexpr =  match sexpr with
 
 
 
+(* ------------------------------- let rec-------------------------------------*)
+and handle_letrec args body = match args with
+|Nil -> tag_parse (Pair (Symbol "let",Pair (Nil, body)))
+|Pair(Pair(car,cdr),other_pairs) -> 
+ let whatever_values = create_whateverlist args in  
+
+let set_args = create_set_args args body in
+tag_parse(Pair (Symbol "let",Pair (whatever_values, set_args)))
+|_ -> raise X_syntax_error 
+
+
+and create_set_args args body= match args with
+|Nil -> body
+(* |Pair(Pair(arg,value),Nil) -> Pair(Symbol("set!"),Pair(arg,value)) *)
+|Pair(Pair(arg,value),next_ribs)  -> 
+    let one_set = (Pair(Symbol("set!"),Pair(arg,value))) in
+    Pair(one_set,(create_set_args next_ribs body))
+|Pair(arg, value) -> (* Pair(Pair(Symbol("set!"),(Pair(arg ,value))),body)*) Symbol ("romik")
+|_ -> raise X_syntax_error
+
+and create_whateverlist args = 
+let whatever = Pair(Symbol("quote"),(Pair(Symbol("whatever"),Nil))) in
+
+match args with
+|Pair(Pair(arg,Pair(value,Nil)),Nil) -> (Pair(arg,whatever))   
+|Pair(Pair(arg,Pair(value,Nil)),next_ribs)  -> Pair(Pair(arg,Pair(whatever,Nil)), create_whateverlist next_ribs) 
+|Pair(arg, value) -> Pair(arg,Pair(whatever, Nil))
+|_ -> raise X_syntax_error
+
+(* ------------------------------- let star-------------------------------------*)
+
+and handle_let_star args body  = match args with
+|Nil -> tag_parse (Pair (Symbol "let",Pair (Nil, body)))
+|Pair(Pair(single_var,single_val) as single ,Nil) -> tag_parse (Pair (Symbol "let",Pair (single, body)))
+|Pair(Pair(car,cdr) as args,other_pairs) ->  
+tag_parse (
+    Pair (Symbol "let",Pair (args, Pair(Pair((Symbol "let*",Pair (other_pairs, body))),Nil))))
+| _ -> raise X_syntax_error
+
+
+(* 
+Applic (LambdaSimple (["f1"; "f2"; "f3"],
+   Seq
+    [Applic (Set (Var "f1", Var "e1"),
+      [Set (Var "f2", Var "e2"); Set (Var "f3", Var "e3")]);
+     Var "body"]),
+ [Var "whatever"; Var "whatever"; Var "whatever"]) *)
+
+(* and create_parsed_args args  = match args with
+|Pair(Pair (arg,value),Nil) ->  Pair(arg,Pair(Symbol("whatever"), Nil))
+|Pair(Pair(arg,value),next_ribs) -> (Pair(Pair(arg,Pair(Symbol("whatever"), Nil)), (create_parsed_args next_ribs))) 
+|Pair(arg, value) ->Pair(arg, Pair(Symbol("whatever"), Nil))
+|_ -> raise X_syntax_error *)
+
+(* ------------------------------- let -------------------------------------*)
+
+and create_arglist ribs = match ribs with
+|Pair(Pair (arg,value),Nil) ->  Pair(arg,Nil)
+|Pair(Pair(arg,value),next_ribs) -> (Pair(arg, (create_arglist next_ribs))) 
+|Pair(arg, value) ->Pair(arg, Nil)
+|_ -> raise X_syntax_error
+
+and create_valueslist ribs = match ribs with
+|Pair(Pair(arg,Pair(value,Nil)),Nil) -> Pair(value,Nil)
+|Pair(Pair(arg,Pair(value,Nil)),next_ribs)  ->  Pair(value , create_valueslist next_ribs)
+|Pair(arg, value) -> Pair(value,Nil)
+|_ -> raise X_syntax_error
+
+and handle_let args body  =
+ macro_extension_let body (create_arglist  args) (create_valueslist args )
+
+and handle_let_no_args body  = 
+macro_extension_let body Nil Nil
+
+
+and macro_extension_let body arglist valuesList = 
+(* tag_parse(Pair (Pair (Symbol "lambda", Pair (arglist, body)), valuesList)) *)
+(*| Pair(rib, ribs) -> tag_parse ( Pair(Pair(Symbol("lambda"), Pair((makeVariablesList args), body)), (makeValuesList args)) )*)
+
+let parsed_lambda = tag_parse (Pair(Symbol("lambda"),Pair(arglist,body)))  in
+        Applic(parsed_lambda, map_tag_parse valuesList) 
+
+
+
 (* -------------------------------------- cond ----------------------------------------------------------*)
-
-
 
 and rib1_cond_tag_parser ribs = 
 rib1_cond_tag_parser ribs
@@ -163,32 +246,6 @@ let f= Pair(Symbol("f"), Pair(Symbol("lambda"), Pair(Nil, exp_f))) in
 let args = Pair(Symbol "let",Pair(k,Pair(f,Nil))) in
 let ifAndApplic = Pair(Symbol("if"), Pair(Symbol("value"), (Pair(Symbol("f"),Symbol("value")) ))) in
 tag_parse (Pair(ifAndApplic ,args)) 
-
-
-
-(*
- Pair
-  (Pair (rib1,
-  Pair
-   (Pair (Pair (Symbol "h?", Pair (Symbol "x", Nil)),
-     Pair (Symbol "=>", Pair (Pair (Symbol "p", Pair (Symbol "q", Nil)), Nil))),
-   Pair
-    (Pair (Symbol "else",
-      Pair (Pair (Symbol "h", Pair (Symbol "x", Pair (Symbol "y", Nil))),
-       Pair (Pair (Symbol "g", Pair (Symbol "x", Nil)), Nil))),
-    Nil)))
-
-    ---
-    Pair (Symbol "cond",
- Pair
-  (Pair (Pair (Symbol "h?", Pair (Symbol "x", Nil)),
-    Pair (Symbol "=>", Pair (Pair (Symbol "p", Pair (Symbol "q", Nil)), Nil))),
-  Nil))
-
-   Pair(Pair (Pair (Symbol "h?", Pair (Symbol "x", Nil)), Pair (Symbol "=>", Pair (Pair (Symbol "p", Pair (Symbol "q", Nil)), Nil))),Nil)
-
-*)
-
 
 
 and  cond_tag_parser rib =
@@ -245,60 +302,6 @@ and and_macro_extension sexpr= match sexpr with
 |Pair(car,cdr) -> let next_conds = Pair(((Symbol ("and")), cdr)) in
  If(tag_parse car ,  tag_parse next_conds ,Const(Sexpr(Bool(false))))
 |_ -> raise X_syntax_error
-(* ------------------------------- let star-------------------------------------*)
-(*
-Pair (Symbol "let*",
- Pair
- args=  (Pair (Symbol "e1", Pair (Symbol "v1", Nil)), Nil),
- body = Pair (Symbol "body", Nil))
-
-
-Pair (Symbol "let*",
- Pair
-  (Pair 
-  args = (Pair (Symbol "e1", Pair (Symbol "v1", Nil)),
-    Pair (Pair (Symbol "e2", Pair (Symbol "v2", Nil)),
-     Pair (Pair (Symbol "e3", Pair (Symbol "v3", Nil)), Nil))),
- body = Pair (Symbol "body", Nil)))
-  )
-*)
-
-and handle_let_star args body  = match args with
-|Nil -> tag_parse (Pair (Symbol "let",Pair (Nil, body)))
-|Pair(Pair(single_var,single_val) as single ,Nil) -> tag_parse (Pair (Symbol "let",Pair (single, body)))
-|Pair(Pair(car,cdr) as args,other_pairs) ->  
-tag_parse (
-    Pair (Symbol "let",Pair (args, Pair(Pair((Symbol "let*",Pair (other_pairs, body))),Nil))))
-| _ -> raise X_syntax_error
-
-
-(* ------------------------------- let -------------------------------------*)
-
-and create_arglist ribs = match ribs with
-|Pair(Pair (arg,value),Nil) ->  Pair(arg,Nil)
-|Pair(Pair(arg,value),next_ribs) -> (Pair(arg, (create_arglist next_ribs))) 
-|Pair(arg, value) ->Pair(arg, Nil)
-|_ -> raise X_syntax_error
-
-and create_valueslist ribs = match ribs with
-|Pair(Pair(arg,Pair(value,Nil)),Nil) -> value
-|Pair(Pair(arg,Pair(value,Nil)),next_ribs)  ->  Pair(value , create_valueslist next_ribs)
-|Pair(arg, value) -> value
-|_ -> raise X_syntax_error
-
-and handle_let args body  =
- macro_extension_let body (create_arglist  args) (create_valueslist args )
-
-and handle_let_no_args body  = 
-macro_extension_let body Nil Nil
-
-
-and macro_extension_let body arglist valuesList = 
-(* tag_parse(Pair (Pair (Symbol "lambda", Pair (arglist, body)), valuesList)) *)
-(*| Pair(rib, ribs) -> tag_parse ( Pair(Pair(Symbol("lambda"), Pair((makeVariablesList args), body)), (makeValuesList args)) )*)
-
-let parsed_lambda = tag_parse (Pair(Symbol("lambda"), (Pair(arglist, body))))  in
-        Applic(parsed_lambda, map_tag_parse valuesList) 
 
  
 
@@ -432,6 +435,9 @@ let _assert num str out =
 	   "Failed %.2f with X_syntax_error: Tag parser failed to resolve expression '%s'"num str));;
 
 
+
+
+
 (*Boolean*)
 _assert 1.0 "#t" ( Const (Sexpr (Bool true)));;
 _assert 1.1 "#f" ( Const (Sexpr (Bool false)));;
@@ -534,7 +540,7 @@ _assertX 13.2 "(define if b)";;
 _assert 14.0 "(set! a 5)" (Set (Var "a", Const (Sexpr (Number (Int 5)))));;
 _assertX 14.1 "(set! define 5)";;
 _assertX 14.2 "(set! \"string\" 5)";;
-
+(*
 
 (*Let*)
 _assert 15.0 "(let ((v1 b1)(v2 b2)) c1 c2 c3)"
@@ -615,6 +621,6 @@ _assert 21.2 "(cond (p1 e1 e2) (p2 e3 e4) (else e5 e6) (BAD BAD BAD))"
           (begin e3 e4)
           (begin e5 e6)))");;
 
-
+*)
 end;; (* struct Tag_Parser *)
 
