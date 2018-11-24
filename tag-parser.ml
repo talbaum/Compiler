@@ -68,7 +68,7 @@ let reserved_word_list =
 
 (* ------------------------ work on the tag parser starts here --------------------------------------*)
 
-
+(* ------------------------------ Helper functions ---------------------------------------------------*)
 let is_in_reserved_list = function
   | Symbol(check_me)->   List.mem check_me reserved_word_list 
   | _-> raise X_syntax_error;;
@@ -83,8 +83,6 @@ let rec find_last_element = function
   | x::[] -> x
   | _::xs -> find_last_element xs
   | [] -> raise X_syntax_error;;
-
-
 
 
 let rec convert_to_sexpr_list list = match list with
@@ -107,13 +105,12 @@ let is_not_duplicated_args args =
 let unique_number_of_args = (List.sort_uniq String.compare args) in
 if (List.length unique_number_of_args == List.length args) then true else false;;
 
-
-
 let without_last_arg list = 
   let reversedList= List.rev list in
   let no_first_arg = List.tl reversedList in
   List.rev no_first_arg
 
+(* ------------------------------------- TAG-PARSE ------------------------------------------------------*)
 
 let rec tag_parse sexpr =  match sexpr with
 | Number (Int(a)) -> Const(Sexpr(Number(Int(a))))
@@ -130,17 +127,117 @@ let rec tag_parse sexpr =  match sexpr with
 | Pair(Symbol("or"),exprs)->or_tag_parser exprs
 | Pair(Symbol("lambda"), Pair(args, body)) -> lambda_tag_parser args body
 | Pair (Symbol "let",Pair (Nil, body)) -> handle_let_no_args body
-| Pair (Symbol "let",Pair (args, body)) -> handle_let args body
+| Pair (Symbol "let",Pair (args, body)) ->handle_let args body
 | Pair (Symbol "let*",Pair (args, body)) -> handle_let_star args body
 | Pair (Symbol "letrec",Pair (args, body)) -> handle_letrec args body
 | Pair(Symbol("quasiquote"),Pair(exprs,Nil))-> quasiquote_tag_parser exprs
-| Pair(Symbol("cond"),ribs)-> (cond_tag_parser  ribs)
+| Pair(Symbol("cond"),Pair(rib, otherRibs))-> cond_tag_parser  rib otherRibs
 | Pair(Symbol "and", exprs) -> and_macro_extension exprs
 | Pair(Symbol "define", Pair(Pair(varname, arglist), body))-> define_mit_macro_extension varname arglist body
-| Symbol(a)-> if( List.mem a reserved_word_list)  then raise X_syntax_error else Var(a)
+| Symbol(a)-> symbol_tag_parser a
 | Pair (functionName, args)->applic_tag_parser functionName args
 | _ -> raise  X_syntax_error
 
+
+
+
+
+(* -------------------------------------- cond ----------------------------------------------------------*)
+
+and rib1_cond_tag_parser test seq otherRibs = 
+let dit = Pair(Symbol("begin"), seq) in
+let dif = (Pair(Symbol("cond"),otherRibs)) in
+(match otherRibs with 
+|Nil -> tag_parse(Pair(Symbol("if"), Pair(test, Pair(dit, Nil))))
+|_-> tag_parse (Pair(Symbol("if"), Pair(test, Pair(dit, (Pair(dif,  Nil)))))))
+(*
+and create_valueslist ribs = match ribs with
+|Pair(Pair(arg,Pair(value,Nil)),Nil) -> value
+|Pair(Pair(arg,Pair(value,Nil)),next_ribs)  ->  Pair(value , create_valueslist next_ribs)
+|Pair(arg, value) -> value
+Pair(Pair(arg,Pair(value,Nil)),next_ribs)
+
+--
+
+Pair(Symbol("lambda"), Pair(args, body)) 
+
+
+*)
+(*
+and rib2_cond_tag_parser exp_k exp_f=
+
+
+let k= Pair(Symbol("value"),Pair(exp_k,Nil)) in
+let f= Pair(Symbol("f"), Pair(Pair(Symbol("lambda"), Pair(Nil, Pair(exp_f,Nil))),Nil))  in
+ let args =Pair(Symbol( "let"),Pair((Pair(k,Pair(f,Nil)) ),Nil)) in
+let ifAndApplic = Pair(Symbol("if"), Pair(Pair(Symbol("value"),Nil), (Pair(Symbol("f"),Symbol("value")) ))) in
+tag_parse((ifAndApplic) ,args)
+*)
+
+and  cond_tag_parser rib otherRibs=
+(match rib with
+(*|Pair(exp_k,Pair(Symbol("=>"),Pair(exp_f,Nil)))->rib2_cond_tag_parser exp_k exp_f
+
+|Pair(Pair(exp_k,Pair(Symbol("=>"),exp_f)), rest)->tag_parse (Pair(Pair(Pair (Symbol "let",Pair (Pair(Pair(Symbol("value"),exp_k),Pair(Symbol("f"),Pair(Symbol("lambda"), Pair(Nil, exp_f))),Pair(Symbol("rest"),Pair(Symbol("lambda"), Pair(Nil, rest))))))),Pair(Symbol("if"), Pair(Symbol("value"), Pair(Symbol("f"), Pair(Symbol("rest"), Nil))))))
+*)
+|Pair(Symbol("else"),seq)->tag_parse (Pair(Symbol("begin"),seq)) 
+|Pair(test,seq)-> rib1_cond_tag_parser test seq otherRibs
+|_->raise X_syntax_error)
+
+
+(*
+and  cond_tag_parser rib =
+(match rib with
+|Pair(Pair(exp_k,Pair(Symbol("=>"),Pair(exp_f,Nil))),Nil)->build_rib2 exp_k exp_f
+(*
+|Pair(Pair(exp_k,Pair(Symbol("=>"),exp_f)), rest)->tag_parse (Pair(Pair(Pair (Symbol "let",Pair (Pair(Pair(Symbol("value"),exp_k),Pair(Symbol("f"),Pair(Symbol("lambda"), Pair(Nil, exp_f))),Pair(Symbol("rest"),Pair(Symbol("lambda"), Pair(Nil, rest))))))),Pair(Symbol("if"), Pair(Symbol("value"), Pair(Symbol("f"), Pair(Symbol("rest"), Nil))))))
+*)
+|Pair(Pair(Symbol("else"),seq),rest)->tag_parse (Pair(Symbol("begin"),seq))
+|Pair(Pair(test,seq), Nil)-> tag_parse(Pair(Symbol("if"), Pair(test, Pair((Pair(Symbol("begin"), seq)), Nil))))
+|Pair(Pair(test,seq), rest)-> tag_parse (Pair(Symbol("if"), Pair(test, Pair(Pair(Symbol("begin"),seq), (Pair((Pair(Symbol("cond"),rest)),  Nil))))))
+|_->raise X_syntax_error)
+*)
+
+
+(*---------------------------------- lambda ---------------------------------------------------------*)
+
+and lambda_tag_parser args body= 
+(match args with 
+    | Nil -> LambdaSimple ([],(needBegin body))
+    |Symbol(vs) -> LambdaOpt([], vs ,( needBegin body))
+    | Pair(car,Nil) -> let converted_args = convert_to_string_list args in 
+                           LambdaSimple(converted_args,( needBegin body))
+    | Pair(car,cdr) -> let converted_args = convert_to_string_list args in 
+                      if (is_not_duplicated_args converted_args) then
+                              if(is_improper_list args)
+                              then LambdaOpt(without_last_arg(converted_args), find_last_element(converted_args),( needBegin body))
+                              else LambdaSimple(converted_args,( needBegin body))
+                      else raise X_syntax_error
+|_ -> raise X_syntax_error)
+
+
+(*---------------------------- needBegin -----------------------------------*)
+and needBegin body=
+(match body with
+|Pair (Pair (Symbol "begin", x), Nil)->seq_tag_parser x
+|_->tag_parse (Pair(Symbol("begin"), body)))
+
+(* ------------------------------- define -------------------------------------*)
+
+and define_mit_macro_extension var arglist body = 
+(*tag_parse(Pair (Symbol "define", Pair (var, Pair (Pair (Symbol "lambda", Pair (arglist, body)), Nil))))
+*)
+let parsed_lambda = tag_parse (Pair (Symbol("lambda"),(Pair(arglist,body)))) in
+Def(tag_parse var, parsed_lambda)
+
+(* ------------------------------- and -------------------------------------*)
+
+and and_macro_extension sexpr= match sexpr with
+|Nil -> Const(Sexpr(Bool(true)))
+|Pair(last_element,Nil) -> tag_parse last_element
+|Pair(car,cdr) -> let next_conds = Pair(((Symbol ("and")), cdr)) in
+ If(tag_parse car ,  tag_parse next_conds ,Const(Sexpr(Bool(false))))
+|_ -> raise X_syntax_error
 
 
 (* ------------------------------- let rec-------------------------------------*)
@@ -226,86 +323,6 @@ let parsed_lambda = tag_parse (Pair(Symbol("lambda"),Pair(arglist,body)))  in
         Applic(parsed_lambda, map_tag_parse valuesList) 
 
 
-
-(* -------------------------------------- cond ----------------------------------------------------------*)
-
-and rib1_cond_tag_parser ribs = 
-rib1_cond_tag_parser ribs
-(*|->rib2_cond_tag_parser ribs
-|->rib3_cond_tag_parser ribs
-|_->raise X_syntax_error)*)
-(*
-Pair (Symbol "let",Pair (args, body)*)
-(*
-Pair(Symbol("if"), Pair(test, Pair(dit, Nil)))
-*)
-
-and build_rib2 exp_k exp_f=
-let k=Pair(Symbol("value"), exp_k) in
-let f= Pair(Symbol("f"), Pair(Symbol("lambda"), Pair(Nil, exp_f))) in
-let args = Pair(Symbol "let",Pair(k,Pair(f,Nil))) in
-let ifAndApplic = Pair(Symbol("if"), Pair(Symbol("value"), (Pair(Symbol("f"),Symbol("value")) ))) in
-tag_parse (Pair(ifAndApplic ,args)) 
-
-
-and  cond_tag_parser rib =
-(match rib with
-|Pair(Pair(exp_k,Pair(Symbol("=>"),Pair(exp_f,Nil))),Nil)->build_rib2 exp_k exp_f
-(*
-|Pair(Pair(exp_k,Pair(Symbol("=>"),exp_f)), rest)->tag_parse (Pair(Pair(Pair (Symbol "let",Pair (Pair(Pair(Symbol("value"),exp_k),Pair(Symbol("f"),Pair(Symbol("lambda"), Pair(Nil, exp_f))),Pair(Symbol("rest"),Pair(Symbol("lambda"), Pair(Nil, rest))))))),Pair(Symbol("if"), Pair(Symbol("value"), Pair(Symbol("f"), Pair(Symbol("rest"), Nil))))))
-*)|Pair(Pair(Symbol("else"),seq),rest)->tag_parse (Pair(Symbol("begin"),seq))
-|Pair(Pair(test,seq), Nil)-> tag_parse(Pair(Symbol("if"), Pair(test, Pair((Pair(Symbol("begin"), seq)), Nil))))
-|Pair(Pair(test,seq), rest)-> tag_parse (Pair(Symbol("if"), Pair(test, Pair(Pair(Symbol("begin"),seq), (Pair((Pair(Symbol("cond"),rest)),  Nil))))))
-|_->raise X_syntax_error)
-
-
-(*---------------------------------- lambda ---------------------------------------------------------*)
-
-
-and lambda_tag_parser args body= 
-(match args with 
-    | Nil -> LambdaSimple ([],(needBegin body))
-    |Symbol(vs) -> LambdaOpt([], vs ,( needBegin body))
-    | Pair(car,Nil) -> let converted_args = convert_to_string_list args in 
-                           LambdaSimple(converted_args,( needBegin body))
-    | Pair(car,cdr) -> let converted_args = convert_to_string_list args in 
-                      if (is_not_duplicated_args converted_args) then
-                              if(is_improper_list args)
-                              then LambdaOpt(without_last_arg(converted_args), find_last_element(converted_args),( needBegin body))
-                              else LambdaSimple(converted_args,( needBegin body))
-                      else raise X_syntax_error
-|_ -> raise X_syntax_error)
-
-
-
-(*---------------------------- needBegin -----------------------------------*)
-and needBegin body=
-(match body with
-|Pair (Pair (Symbol "begin", x), Nil)->seq_tag_parser x
-|_->tag_parse (Pair(Symbol("begin"), body)))
-
-
-(* ------------------------------- define -------------------------------------*)
-
-and define_mit_macro_extension var arglist body = 
-(*tag_parse(Pair (Symbol "define", Pair (var, Pair (Pair (Symbol "lambda", Pair (arglist, body)), Nil))))
-*)
-let parsed_lambda = tag_parse (Pair (Symbol("lambda"),(Pair(arglist,body)))) in
-Def(tag_parse var, parsed_lambda)
-
-
-(* ------------------------------- and -------------------------------------*)
-
-and and_macro_extension sexpr= match sexpr with
-|Nil -> Const(Sexpr(Bool(true)))
-|Pair(last_element,Nil) -> tag_parse last_element
-|Pair(car,cdr) -> let next_conds = Pair(((Symbol ("and")), cdr)) in
- If(tag_parse car ,  tag_parse next_conds ,Const(Sexpr(Bool(false))))
-|_ -> raise X_syntax_error
-
- 
-
-
 (*---------------------------------- quasiquote ---------------------------------------------------------*)
 and quasiquote_tag_parser exprs= 
 (match exprs with
@@ -313,16 +330,33 @@ and quasiquote_tag_parser exprs=
 |Symbol(exprs) ->tag_parse (Pair(Symbol("quote"), Pair(Symbol(exprs), Nil)))
 |Pair(Symbol("unquote"), Pair(rest,Nil))-> tag_parse rest
 |Pair(Symbol("unquote-splicing"), rest)->raise X_syntax_error
-|Pair(Pair(Symbol("unquote-splicing"),Pair(sexp,Nil)),b)->functionApplication "append" [(tag_parse sexp) ;(tag_parse (Pair(Symbol("quasiquote"),Pair( b,Nil))))]
-|Pair(a,Pair(Symbol("unquote-splicing"),Pair(sexp,Nil)))->functionApplication "cons" [(tag_parse (Pair(Symbol("quasiquote"),Pair(a,Nil))));(tag_parse sexp)]
-|Pair(a,b)-> functionApplication "cons" [(tag_parse (Pair(Symbol("quasiquote"),Pair(a,Nil))));(tag_parse (Pair(Symbol("quasiquote"),Pair(b,Nil))))]
-|Vector(args)-> functionApplication "vector" (quasi_map_tag_parse args)
+|Pair(Pair(Symbol("unquote-splicing"),Pair(spliced,Nil)),after)-> tag_parse (unquote_splicing_builder spliced Nil after 1)
+|Pair(before,Pair(Symbol("unquote-splicing"),Pair(spliced,Nil)))-> tag_parse (unquote_splicing_builder spliced before Nil 2)
+|Pair(before,after)-> tag_parse (unquote_splicing_builder Nil before after 3)
+|Vector(args)-> tag_parse(Pair(Symbol( "vector"),(list_to_nested_pairs(quasi_map_tag_parse args))))
 |_-> raise X_syntax_error)
 
 
-(*------------------------------------ function application -----------------------------------------*)
-and functionApplication functionName args =
-Applic((tag_parse(Symbol(functionName))) ,args)
+(*--------------------------------- unquote-splicing -----------------------------------------*)
+and unquote_splicing_builder spliced before after option=
+(match option with
+|1 ->(Pair(Symbol( "append"), (Pair(spliced,(Pair(Pair(Symbol("quasiquote"),Pair( after,Nil)),Nil))))))
+|2-> (Pair(Symbol( "cons"), (Pair( Pair(Symbol("quasiquote"),Pair(before,Nil)), Pair(spliced,Nil)))))
+|3-> (Pair(Symbol( "cons"), (Pair( (Pair(Symbol("quasiquote"),Pair(before,Nil))),(Pair(Pair(Symbol("quasiquote"),Pair(after,Nil)),Nil))))))
+|_-> raise X_syntax_error)
+
+
+(* ------------------------------- list_to_nested_pairs -------------------------------------*)
+
+and list_to_nested_pairs args = 
+(match args with 
+|[] -> Nil
+|_ -> Pair( (List.hd args), (list_to_nested_pairs (List.tl args) )))
+
+(* ------------------------------- quasi map -------------------------------------*)
+
+and quasi_map_tag_parse args = 
+List.map (fun(element)->(Pair(Symbol("quasiquote"),Pair(element,Nil)))) (args)
 
 
 (* ------------------------------- map -------------------------------------*)
@@ -330,18 +364,14 @@ Applic((tag_parse(Symbol(functionName))) ,args)
 and map_tag_parse args = 
 List.map tag_parse (convert_to_sexpr_list args)
 
-(* ------------------------------- map -------------------------------------*)
-
-and quasi_map_tag_parse args = 
-List.map (fun(element)->tag_parse(Pair(Symbol("quasiquote"),Pair(element,Nil)))) (args)
-
 
 (*---------------------------- or  ----------------------------------------*)
 and or_tag_parser exprs= 
 let tagParsedExprs = map_tag_parse exprs in
-(match tagParsedExprs with
-    |[]->Const(Sexpr(Bool(false)))
-    |[tagParsedExprs]-> tagParsedExprs
+let lengthOfsequence = (List.length tagParsedExprs) in
+(match (lengthOfsequence) with
+    |0->Const(Sexpr(Bool(false)))
+    |1->(List.hd tagParsedExprs)
     |_->Or(tagParsedExprs))
 
 (*--------------------------- seq --------------------------------------------- *)
@@ -373,9 +403,17 @@ let tag_parsed_name = tag_parse(name) in
 and set_tag_parser name expr = 
 let tag_parsed_name = tag_parse(Symbol(name)) in
 let tag_parsed_expr = tag_parse expr in
-Set(tag_parsed_name,tag_parsed_expr);;
+Set(tag_parsed_name,tag_parsed_expr)
 
-(*----------------------------------------------------------------------------*)
+(*------------------------------------ Symbol ------------------------------------------------------------*)
+
+and symbol_tag_parser a=
+let reservedWord=  is_in_reserved_list (Symbol(a)) in
+(match reservedWord with 
+|true -> raise X_syntax_error
+|false ->Var(a));;
+
+(*------------------------ Main Functions ----------------------------------*)
 
 let tag_parse_expression sexpr = tag_parse sexpr;;
 let tag_parse_expressions sexpr = List.map tag_parse_expression sexpr;;
@@ -433,9 +471,6 @@ let _assert num str out =
      (failwith
 	(Printf.sprintf
 	   "Failed %.2f with X_syntax_error: Tag parser failed to resolve expression '%s'"num str));;
-
-
-
 
 
 (*Boolean*)
@@ -540,7 +575,7 @@ _assertX 13.2 "(define if b)";;
 _assert 14.0 "(set! a 5)" (Set (Var "a", Const (Sexpr (Number (Int 5)))));;
 _assertX 14.1 "(set! define 5)";;
 _assertX 14.2 "(set! \"string\" 5)";;
-(*
+
 
 (*Let*)
 _assert 15.0 "(let ((v1 b1)(v2 b2)) c1 c2 c3)"
@@ -558,14 +593,14 @@ _assert 16.2 "(and e1 e2 e3 e4)"
 
 (*Let* *) 
 _assert 17.0 "(let* () body)" (Applic (LambdaSimple ([], Var "body"), []));;
-
+(*
 _assert 17.1 "(let* ((e1 v1)) body)" (Applic (LambdaSimple (["e1"], Var "body"), [Var "v1"]));;
 
 _assert 17.2 "(let* ((e1 v1)(e2 v2)(e3 v3)) body)"
   (Applic (LambdaSimple (["e1"], Applic (LambdaSimple (["e2"], Applic (LambdaSimple (["e3"], Var "body"),
    [Var "v3"])), [Var "v2"])), [Var "v1"]));;
+*)
 
-(*
 
 (*Letrec*)
 _assert 19.0 "(letrec ((f1 e1)(f2 e2)(f3 e3)) body)"
@@ -584,7 +619,7 @@ _assert 19.0 "(letrec ((f1 e1)(f2 e2)(f3 e3)) body)"
  [Const (Sexpr (Symbol "whatever")); Const (Sexpr (Symbol "whatever"));
       Const (Sexpr (Symbol "whatever"))]));;
 
-*)
+
 (*Quasiquote*)
 _assert 20.0 "`,x" (_tag_string "x");;
 _assertX 20.01 "`,@x";;
@@ -620,7 +655,7 @@ _assert 21.2 "(cond (p1 e1 e2) (p2 e3 e4) (else e5 e6) (BAD BAD BAD))"
         (if p2
           (begin e3 e4)
           (begin e5 e6)))");;
-
 *)
+
 end;; (* struct Tag_Parser *)
 
