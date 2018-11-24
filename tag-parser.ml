@@ -122,10 +122,8 @@ let rec tag_parse sexpr =  match sexpr with
 | Char(a)-> Const(Sexpr(Char(a)))
 | String(a)-> Const (Sexpr(String(a)))
 | Pair(Symbol("quote"), Pair(a, Nil)) -> Const(Sexpr(a))
-| Pair(Symbol("if"), Pair(test, Pair(dit, Pair(dif, Nil)))) ->
-  If(tag_parse test, tag_parse dit, tag_parse dif)
-| Pair(Symbol("if"), Pair(test, Pair(dit, Nil)))->
-  If(tag_parse test, tag_parse dit, Const (Void))
+| Pair(Symbol("if"), Pair(test, Pair(dit, Pair(dif, Nil)))) -> If(tag_parse test, tag_parse dit, tag_parse dif)
+| Pair(Symbol("if"), Pair(test, Pair(dit, Nil)))-> If(tag_parse test, tag_parse dit, Const (Void))
 | Pair(Symbol("define"),(Pair(Symbol(name) ,(Pair(expr, Nil)))))-> define_tag_parser (Symbol(name)) expr
 | Pair(Symbol("set!"),(Pair(Symbol(name) ,(Pair(expr, Nil)))))->set_tag_parser name expr
 | Pair(Symbol("begin"), exprs)-> seq_tag_parser exprs
@@ -148,9 +146,57 @@ let rec tag_parse sexpr =  match sexpr with
 
 
 
+and rib1_cond_tag_parser ribs = 
+rib1_cond_tag_parser ribs
+(*|->rib2_cond_tag_parser ribs
+|->rib3_cond_tag_parser ribs
+|_->raise X_syntax_error)*)
+(*
+Pair (Symbol "let",Pair (args, body)*)
+(*
+Pair(Symbol("if"), Pair(test, Pair(dit, Nil)))
+*)
+
+and build_rib2 exp_k exp_f=
+let k=Pair(Symbol("value"), exp_k) in
+let f= Pair(Symbol("f"), Pair(Symbol("lambda"), Pair(Nil, exp_f))) in
+let args = Pair(Symbol "let",Pair(k,Pair(f,Nil))) in
+let ifAndApplic = Pair(Symbol("if"), Pair(Symbol("value"), (Pair(Symbol("f"),Symbol("value")) ))) in
+tag_parse (Pair(ifAndApplic ,args)) 
+
+
+
+(*
+ Pair
+  (Pair (rib1,
+  Pair
+   (Pair (Pair (Symbol "h?", Pair (Symbol "x", Nil)),
+     Pair (Symbol "=>", Pair (Pair (Symbol "p", Pair (Symbol "q", Nil)), Nil))),
+   Pair
+    (Pair (Symbol "else",
+      Pair (Pair (Symbol "h", Pair (Symbol "x", Pair (Symbol "y", Nil))),
+       Pair (Pair (Symbol "g", Pair (Symbol "x", Nil)), Nil))),
+    Nil)))
+
+    ---
+    Pair (Symbol "cond",
+ Pair
+  (Pair (Pair (Symbol "h?", Pair (Symbol "x", Nil)),
+    Pair (Symbol "=>", Pair (Pair (Symbol "p", Pair (Symbol "q", Nil)), Nil))),
+  Nil))
+
+   Pair(Pair (Pair (Symbol "h?", Pair (Symbol "x", Nil)), Pair (Symbol "=>", Pair (Pair (Symbol "p", Pair (Symbol "q", Nil)), Nil))),Nil)
+
+*)
+
+
+
 and  cond_tag_parser rib =
 (match rib with
-|Pair(Pair(Symbol("else"),seq),rest)->tag_parse (Pair(Symbol("begin"),seq))
+|Pair(Pair(exp_k,Pair(Symbol("=>"),Pair(exp_f,Nil))),Nil)->build_rib2 exp_k exp_f
+(*
+|Pair(Pair(exp_k,Pair(Symbol("=>"),exp_f)), rest)->tag_parse (Pair(Pair(Pair (Symbol "let",Pair (Pair(Pair(Symbol("value"),exp_k),Pair(Symbol("f"),Pair(Symbol("lambda"), Pair(Nil, exp_f))),Pair(Symbol("rest"),Pair(Symbol("lambda"), Pair(Nil, rest))))))),Pair(Symbol("if"), Pair(Symbol("value"), Pair(Symbol("f"), Pair(Symbol("rest"), Nil))))))
+*)|Pair(Pair(Symbol("else"),seq),rest)->tag_parse (Pair(Symbol("begin"),seq))
 |Pair(Pair(test,seq), Nil)-> tag_parse(Pair(Symbol("if"), Pair(test, Pair((Pair(Symbol("begin"), seq)), Nil))))
 |Pair(Pair(test,seq), rest)-> tag_parse (Pair(Symbol("if"), Pair(test, Pair(Pair(Symbol("begin"),seq), (Pair((Pair(Symbol("cond"),rest)),  Nil))))))
 |_->raise X_syntax_error)
@@ -298,10 +344,11 @@ let tagParsedExprs = map_tag_parse exprs in
 (*--------------------------- seq --------------------------------------------- *)
 and seq_tag_parser exprs = 
 let tagParsedExprs = map_tag_parse exprs in
-(match tagParsedExprs with
-    |[]->Const(Void)
-    |[tagParsedExprs]->  tagParsedExprs
-    |_->Seq( tagParsedExprs))
+let lengthOfsequence = (List.length tagParsedExprs) in
+(match (lengthOfsequence) with
+    |0-> Const(Void)
+    |1-> (List.hd tagParsedExprs)
+    |_->Seq(tagParsedExprs))
 
 (*--------------------------- Applic ------------------------------------------- *)
 
@@ -318,13 +365,14 @@ let tag_parsed_name = tag_parse(name) in
  |Var(x)->Def(tag_parsed_name,tag_parsed_expr)
  |_->raise X_syntax_error)
  
-(*------------------------------ Set ----------------------------------------*)
+(*------------------------------ Set! ----------------------------------------*)
 
 and set_tag_parser name expr = 
 let tag_parsed_name = tag_parse(Symbol(name)) in
 let tag_parsed_expr = tag_parse expr in
 Set(tag_parsed_name,tag_parsed_expr);;
 
+(*----------------------------------------------------------------------------*)
 
 let tag_parse_expression sexpr = tag_parse sexpr;;
 let tag_parse_expressions sexpr = List.map tag_parse_expression sexpr;;
