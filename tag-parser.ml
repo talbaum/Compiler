@@ -76,14 +76,12 @@ let is_in_reserved_list = function
   | _-> raise X_syntax_error;;
 
 let rec is_improper_list list  = match list with
-|Pair(car,Nil)  ->  false
+|Nil -> false
 |Pair(car,cdr) -> is_improper_list cdr
-| Nil -> false
-  | _ -> true;;
+| _ -> true;;
 
 let rec find_last_element = function
-  | x::[] -> x
-  | _::xs -> find_last_element xs
+  | _::xs -> List.hd(List.rev( xs))
   | [] -> raise X_syntax_error;;
 
 let rec convert_to_sexpr_list list = match list with
@@ -93,18 +91,23 @@ let rec convert_to_sexpr_list list = match list with
 | Pair(car,cdr) ->  car :: (convert_to_sexpr_list cdr)
 | _ -> raise X_syntax_error;;
 
+let string_converter_function car dif =
+let reservedWord=  is_in_reserved_list (Symbol(car)) in
+      match reservedWord with 
+        |true -> raise X_syntax_error
+        |false ->dif;;
 
 let rec convert_to_string_list list = match list with
 | Nil -> []
-| Pair(Symbol(car), Nil)-> if (is_in_reserved_list(Symbol(car)))  then raise X_not_yet_implemented else [car]
-| Symbol(car) -> if (is_in_reserved_list(Symbol(car))) then raise X_not_yet_implemented else [car]
-| Pair(Symbol(car),cdr) -> if (is_in_reserved_list(Symbol(car))) then raise X_not_yet_implemented else car :: (convert_to_string_list cdr)
+| Pair(Symbol(car), Nil)-> string_converter_function car [car]
+| Symbol(car) -> string_converter_function car [car]
+| Pair(Symbol(car),cdr) -> string_converter_function car (car :: (convert_to_string_list cdr))
 | _ -> raise X_not_yet_implemented;;
 
 
 let is_not_duplicated_args args = 
 let unique_number_of_args = (List.sort_uniq String.compare args) in
-if (List.length unique_number_of_args == List.length args) then true else false;;
+if (List.compare_lengths args  unique_number_of_args == 0) then true else false;;
 
 
 let without_last_arg list = 
@@ -148,8 +151,7 @@ let rec tag_parse sexpr =  match sexpr with
 and handle_letrec args body = match args with
 |Nil -> tag_parse (Pair (Symbol "let",Pair (Nil, body)))
 |Pair(Pair(car,cdr),other_pairs) -> 
- let whatever_values = create_whateverlist args in  
-
+let whatever_values = create_whateverlist args in  
 let set_args = create_set_args args body in
 tag_parse(Pair (Symbol "let",Pair (whatever_values, set_args)))
 |_ -> raise X_syntax_error 
@@ -157,7 +159,6 @@ tag_parse(Pair (Symbol "let",Pair (whatever_values, set_args)))
 
 and create_set_args args body= match args with
 |Nil -> body
-(* |Pair(Pair(arg,value),Nil) -> Pair(Symbol("set!"),Pair(arg,value)) *)
 |Pair(Pair(arg,value),next_ribs)  -> 
     let one_set = (Pair(Symbol("set!"),Pair(arg,value))) in
     Pair(one_set,(create_set_args next_ribs body))
@@ -208,7 +209,7 @@ and create_letstar_valueslist ribs =
 
 
 and handle_let args body is_star = match is_star with
-|1->  macro_extension_let body (create_arglist  args) (create_letstar_valueslist args ) 
+|1 ->  macro_extension_let body (create_arglist  args) (create_letstar_valueslist args ) 
 |_->  macro_extension_let body (create_arglist  args) (create_valueslist args )
 
 
@@ -277,7 +278,10 @@ and lambda_tag_parser args body=
     | Pair(car,cdr) -> let converted_args = convert_to_string_list args in 
                       if (is_not_duplicated_args converted_args) then
                               if(is_improper_list args)
-                              then LambdaOpt(without_last_arg(converted_args), find_last_element(converted_args),( needBegin body))
+                              then 
+                                  let last_element = find_last_element(converted_args) in
+                                  let almost_all_args = without_last_arg(converted_args) in
+                                  LambdaOpt(almost_all_args, last_element,( needBegin body))
                               else LambdaSimple(converted_args,( needBegin body))
                       else raise  X_syntax_error
 |_ -> raise X_syntax_error)
@@ -294,8 +298,6 @@ and needBegin body=
 (* ------------------------------- define -------------------------------------*)
 
 and define_mit_macro_extension var arglist body = 
-(*tag_parse(Pair (Symbol "define", Pair (var, Pair (Pair (Symbol "lambda", Pair (arglist, body)), Nil))))
-*)
 let parsed_lambda = tag_parse (Pair (Symbol("lambda"),(Pair(arglist,body)))) in
 Def(tag_parse var, parsed_lambda)
 
@@ -303,10 +305,13 @@ Def(tag_parse var, parsed_lambda)
 (* ------------------------------- and -------------------------------------*)
 
 and and_macro_extension sexpr= match sexpr with
-|Nil -> Const(Sexpr(Bool(true)))
+|Nil -> tag_parse (Bool (true))
 |Pair(last_element,Nil) -> tag_parse last_element
-|Pair(car,cdr) -> let next_conds = Pair(((Symbol ("and")), cdr)) in
- If(tag_parse car ,  tag_parse next_conds ,Const(Sexpr(Bool(false))))
+|Pair(car,cdr) -> 
+    let dit = Pair(((Symbol ("and")), cdr)) in
+    let test =car in
+    let  dif = (Bool (false)) in
+    tag_parse(Pair(Symbol("if"), Pair(test, Pair(dit, Pair(dif, Nil))))) 
 |_ -> raise X_syntax_error
 
  
@@ -461,7 +466,7 @@ let _assert num str out =
 
 
 
-(*
+
 
 (*Boolean*)
 _assert 1.0 "#t" ( Const (Sexpr (Bool true)));;
@@ -591,7 +596,7 @@ _assert 17.2 "(let* ((e1 v1)(e2 v2)(e3 v3)) body)"
   (Applic (LambdaSimple (["e1"], Applic (LambdaSimple (["e2"], Applic (LambdaSimple (["e3"], Var "body"),
    [Var "v3"])), [Var "v2"])), [Var "v1"]));;
 
-*)
+
 (*
 (*Letrec*)
 _assert 19.0 "(letrec ((f1 e1)(f2 e2)(f3 e3)) body)"
@@ -609,7 +614,7 @@ _assert 19.0 "(letrec ((f1 e1)(f2 e2)(f3 e3)) body)"
      Set (Var "f3", Var "e3"); Var "body"]),
  [Const (Sexpr (Symbol "whatever")); Const (Sexpr (Symbol "whatever"));
       Const (Sexpr (Symbol "whatever"))]));;
-*)(*
+*)
 (*Quasiquote*)
 _assert 20.0 "`,x" (_tag_string "x");;
 _assertX 20.01 "`,@x";;
@@ -629,6 +634,17 @@ _assert 20.15 "`" (_tag_string "");;
 _assert 20.16 "`" (_tag_string "");;
   _assert 20.17 "`" (_tag_string "");;*)
 
+
+(*
+_assert 21.0 "(cond (a => b)(c => d))"
+  (_tag_string
+     "(let ((value a)(f (lambda () b)))
+        (if value
+          ((f) value)
+          (let ((value c)(f (lambda () d)))
+            (if value
+             ((f) value)))))");;
+*)
 _assert 21.1 "(cond (p1 e1 e2) (p2 e3 e4) (p3 e4 e5))"
   (_tag_string
      "(if p1
@@ -646,6 +662,6 @@ _assert 21.2 "(cond (p1 e1 e2) (p2 e3 e4) (else e5 e6) (BAD BAD BAD))"
           (begin e3 e4)
           (begin e5 e6)))");;
 
-*)
+
 end;; (* struct Tag_Parser *)
 
