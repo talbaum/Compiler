@@ -230,53 +230,38 @@ let dif = (Pair(Symbol("cond"),otherRibs)) in
 (match otherRibs with 
 |Nil -> tag_parse(Pair(Symbol("if"), Pair(test, Pair(dit, Nil))))
 |_-> tag_parse (Pair(Symbol("if"), Pair(test, Pair(dit, (Pair(dif,  Nil)))))))
-(*
-and create_valueslist ribs = match ribs with
-|Pair(Pair(arg,Pair(value,Nil)),Nil) -> value
-|Pair(Pair(arg,Pair(value,Nil)),next_ribs)  ->  Pair(value , create_valueslist next_ribs)
-|Pair(arg, value) -> value
-Pair(Pair(arg,Pair(value,Nil)),next_ribs)
-
---
-
-Pair(Symbol("lambda"), Pair(args, body)) 
 
 
-*)
-(*
-and rib2_cond_tag_parser exp_k exp_f=
+and rib2_nil_cond_tag_parser exp_k exp_f=
+let test=Symbol("value") in
+let dit =Pair((Pair(Symbol("f"),Nil)),Symbol("value")) in
+let ifAndApplic=( Pair(Symbol("if"), Pair(test, (Pair(dit ,Nil))))) in
+ let k= Pair(Symbol("value"),Pair(exp_k,Nil)) in
+let f= Pair(Symbol("f"), Pair(Pair(Symbol("lambda"), Pair(Nil, Pair(exp_f,Nil))),Nil))  in
+let args = (Pair(Symbol("let"),Pair( (Pair(k,Pair(f,Nil)) ),Pair(ifAndApplic,Nil))))  in
+tag_parse (args)
 
 
+and rib2_cond_tag_parser exp_k exp_f rest=
+let test=Symbol("value") in
+let dit =Pair((Pair(Symbol("f"),Nil)),Symbol("value")) in
+let dif =Pair(Symbol("rest"),Nil) in
+let ifAndApplic=( Pair(Symbol("if"), Pair(test, (Pair(dit ,Pair(dif,Nil)))))) in
 let k= Pair(Symbol("value"),Pair(exp_k,Nil)) in
 let f= Pair(Symbol("f"), Pair(Pair(Symbol("lambda"), Pair(Nil, Pair(exp_f,Nil))),Nil))  in
- let args =Pair(Symbol( "let"),Pair((Pair(k,Pair(f,Nil)) ),Nil)) in
-let ifAndApplic = Pair(Symbol("if"), Pair(Pair(Symbol("value"),Nil), (Pair(Symbol("f"),Symbol("value")) ))) in
-tag_parse((ifAndApplic) ,args)
-*)
+let restCond = Pair(Symbol("cond"),rest) in
+let rest1 = Pair(Symbol("rest"), Pair(Pair(Symbol("lambda"), Pair(Nil, Pair(restCond,Nil))),Nil))  in
+let args = (Pair(Symbol("let"),Pair( (Pair(k,Pair(f,Pair(rest1,Nil))) ),Pair(ifAndApplic,Nil))))  in
+tag_parse (args)
 
 and  cond_tag_parser rib otherRibs=
 (match rib with
-(*|Pair(exp_k,Pair(Symbol("=>"),Pair(exp_f,Nil)))->rib2_cond_tag_parser exp_k exp_f
-
-|Pair(Pair(exp_k,Pair(Symbol("=>"),exp_f)), rest)->tag_parse (Pair(Pair(Pair (Symbol "let",Pair (Pair(Pair(Symbol("value"),exp_k),Pair(Symbol("f"),Pair(Symbol("lambda"), Pair(Nil, exp_f))),Pair(Symbol("rest"),Pair(Symbol("lambda"), Pair(Nil, rest))))))),Pair(Symbol("if"), Pair(Symbol("value"), Pair(Symbol("f"), Pair(Symbol("rest"), Nil))))))
-*)
+|Pair(exp_k,Pair(Symbol("=>"),Pair(exp_f,Nil)))->(match otherRibs with
+        |Nil->rib2_nil_cond_tag_parser exp_k exp_f
+        |_->rib2_cond_tag_parser exp_k exp_f otherRibs)
 |Pair(Symbol("else"),seq)->tag_parse (Pair(Symbol("begin"),seq)) 
 |Pair(test,seq)-> rib1_cond_tag_parser test seq otherRibs
 |_->raise X_syntax_error)
-
-
-(*
-and  cond_tag_parser rib =
-(match rib with
-|Pair(Pair(exp_k,Pair(Symbol("=>"),Pair(exp_f,Nil))),Nil)->build_rib2 exp_k exp_f
-(*
-|Pair(Pair(exp_k,Pair(Symbol("=>"),exp_f)), rest)->tag_parse (Pair(Pair(Pair (Symbol "let",Pair (Pair(Pair(Symbol("value"),exp_k),Pair(Symbol("f"),Pair(Symbol("lambda"), Pair(Nil, exp_f))),Pair(Symbol("rest"),Pair(Symbol("lambda"), Pair(Nil, rest))))))),Pair(Symbol("if"), Pair(Symbol("value"), Pair(Symbol("f"), Pair(Symbol("rest"), Nil))))))
-*)
-|Pair(Pair(Symbol("else"),seq),rest)->tag_parse (Pair(Symbol("begin"),seq))
-|Pair(Pair(test,seq), Nil)-> tag_parse(Pair(Symbol("if"), Pair(test, Pair((Pair(Symbol("begin"), seq)), Nil))))
-|Pair(Pair(test,seq), rest)-> tag_parse (Pair(Symbol("if"), Pair(test, Pair(Pair(Symbol("begin"),seq), (Pair((Pair(Symbol("cond"),rest)),  Nil))))))
-|_->raise X_syntax_error)
-*)
 
 
 
@@ -294,7 +279,7 @@ and lambda_tag_parser args body=
                               if(is_improper_list args)
                               then LambdaOpt(without_last_arg(converted_args), find_last_element(converted_args),( needBegin body))
                               else LambdaSimple(converted_args,( needBegin body))
-                      else raise X_syntax_error
+                      else raise  X_syntax_error
 |_ -> raise X_syntax_error)
 
 
@@ -476,7 +461,7 @@ let _assert num str out =
 
 
 
-
+(*
 
 (*Boolean*)
 _assert 1.0 "#t" ( Const (Sexpr (Bool true)));;
@@ -606,7 +591,7 @@ _assert 17.2 "(let* ((e1 v1)(e2 v2)(e3 v3)) body)"
   (Applic (LambdaSimple (["e1"], Applic (LambdaSimple (["e2"], Applic (LambdaSimple (["e3"], Var "body"),
    [Var "v3"])), [Var "v2"])), [Var "v1"]));;
 
-
+*)
 (*
 (*Letrec*)
 _assert 19.0 "(letrec ((f1 e1)(f2 e2)(f3 e3)) body)"
@@ -624,7 +609,7 @@ _assert 19.0 "(letrec ((f1 e1)(f2 e2)(f3 e3)) body)"
      Set (Var "f3", Var "e3"); Var "body"]),
  [Const (Sexpr (Symbol "whatever")); Const (Sexpr (Symbol "whatever"));
       Const (Sexpr (Symbol "whatever"))]));;
-*)
+*)(*
 (*Quasiquote*)
 _assert 20.0 "`,x" (_tag_string "x");;
 _assertX 20.01 "`,@x";;
@@ -661,6 +646,6 @@ _assert 21.2 "(cond (p1 e1 e2) (p2 e3 e4) (else e5 e6) (BAD BAD BAD))"
           (begin e3 e4)
           (begin e5 e6)))");;
 
-
+*)
 end;; (* struct Tag_Parser *)
 
