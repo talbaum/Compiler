@@ -102,7 +102,7 @@ let rec convert_to_string_list list = match list with
 | Pair(Symbol(car), Nil)-> string_converter_function car [car]
 | Symbol(car) -> string_converter_function car [car]
 | Pair(Symbol(car),cdr) -> string_converter_function car (car :: (convert_to_string_list cdr))
-| _ -> raise X_not_yet_implemented;;
+| _ -> raise X_syntax_error;;
 
 
 let is_not_duplicated_args args = 
@@ -145,6 +145,9 @@ let rec tag_parse sexpr =  match sexpr with
 | Pair (functionName, args)->applic_tag_parser functionName args
 | _ -> raise  X_syntax_error
 
+(*   
+Pair(Symbol "quasiquote", Pair(, Nil)))) (execute_expected(Const(Sexpr(Pair(Symbol "quote", Pair(Symbol "h", Nil)))))));
+*)
 
 
 (* ------------------------------- let rec-------------------------------------*)
@@ -297,10 +300,11 @@ and needBegin body=
 
 (* ------------------------------- define -------------------------------------*)
 
-and define_mit_macro_extension var arglist body = 
-let parsed_lambda = tag_parse (Pair (Symbol("lambda"),(Pair(arglist,body)))) in
-Def(tag_parse var, parsed_lambda)
 
+and define_mit_macro_extension var arglist body = 
+let parsed_lambda =  (Pair (Symbol("lambda"),(Pair(arglist,body)))) in
+tag_parse (Pair(Symbol("define"),(Pair(var ,(Pair(parsed_lambda, Nil))))))
+(* Def(tag_parse var, parsed_lambda) *)
 
 (* ------------------------------- and -------------------------------------*)
 
@@ -314,21 +318,57 @@ and and_macro_extension sexpr= match sexpr with
     tag_parse(Pair(Symbol("if"), Pair(test, Pair(dit, Pair(dif, Nil))))) 
 |_ -> raise X_syntax_error
 
+
+
+(* 
+
+test_Lambda_Expressions number 17 Failed with got LambdaSimple([ a ],Const(Void)) while expected Var("test failed with X_syntax_error") !!!
+test_Applications number 9 Failed with got Applic(Var("+"),[ Var("+") ]) while expected Var("test failed with X_syntax_error") !!!
+test_Definitions number 33 Failed with got Def(Var("func"),LambdaSimple([  ],Const(Void))) while expected Var("test failed with X_syntax_error") !!!
+test_Definitions number 34 Failed with got Def(Var("func"),LambdaSimple([  ],Seq([ Var("x"); Var("y") ]))) while expected Var("test failed with X_syntax_error") !!!
+test_Sequences number 14 Failed with got Var("g") while expected Var("test failed with X_syntax_error") !!!
+test_Quasiquoted_Macro_Expansion number 2 Failed with Pair(Symbol("quasiquote"),Pair(String("string"),Nil)) as X_syntax_error !!!
+test_Quasiquoted_Macro_Expansion number 3 Failed with Pair(Symbol("quasiquote"),Pair(Char(),Nil)) as X_syntax_error !!!
+test_Quasiquoted_Macro_Expansion number 5 Failed with got Applic(Var("cons"),[ Const(Sexpr(Symbol("quote"))); Applic(Var("cons"),[ Const(Sexpr(Symbol("h"))); Const(Sexpr(Nil)) ]) ]) while expected Const(Sexpr(Pair(Symbol("quote"),Pair(Symbol("h"),Nil)))) !!!
+test_Quasiquoted_Macro_Expansion number 12 Failed with Pair(Symbol("quasiquote"),Pair(Number(Int(5)),Nil)) as X_syntax_error !!!
+test_Quasiquoted_Macro_Expansion number 13 Failed with Pair(Symbol("quasiquote"),Pair(String("string"),Nil)) as X_syntax_error !!!
+test_Quasiquoted_Macro_Expansion number 14 Failed with Pair(Symbol("quasiquote"),Pair(Char(
+),Nil)) as X_syntax_error !!!
+test_Quasiquoted_Macro_Expansion number 16 Failed with got Applic(Var("cons"),[ Const(Sexpr(Symbol("quote"))); Applic(Var("cons"),[ Const(Sexpr(Symbol("h"))); Const(Sexpr(Nil)) ]) ]) while expected Const(Sexpr(Pair(Symbol("quote"),Pair(Symbol("h"),Nil)))) !!!
+
+
+test_Lambda_Expressions number 17 Failed with got LambdaSimple([ a ],Const(Void)) while expected Var("test failed with X_syntax_error") !!!
+test_Applications number 9 Failed with got Applic(Var("+"),[ Var("+") ]) while expected Var("test failed with X_syntax_error") !!!
+test_Definitions number 33 Failed with got Def(Var("func"),LambdaSimple([  ],Const(Void))) while expected Var("test failed with X_syntax_error") !!!
+test_Definitions number 34 Failed with got Def(Var("func"),LambdaSimple([  ],Seq([ Var("x"); Var("y") ]))) while expected Var("test failed with X_syntax_error") !!!
+test_Sequences number 14 Failed with got Var("g") while expected Var("test failed with X_syntax_error") !!!
+test_Quasiquoted_Macro_Expansion number 5 Failed with got Applic(Var("cons"),[ Const(Sexpr(Symbol("quote"))); Applic(Var("cons"),[ Const(Sexpr(Symbol("h"))); Const(Sexpr(Nil)) ]) ]) while expected Const(Sexpr(Pair(Symbol("quote"),Pair(Symbol("h"),Nil)))) !!!
+test_Quasiquoted_Macro_Expansion number 16 Failed with got Applic(Var("cons"),[ Const(Sexpr(Symbol("quote"))); Applic(Var("cons"),[ Const(Sexpr(Symbol("h"))); Const(Sexpr(Nil)) ]) ]) while expectedConst(Sexpr(Pair(Symbol("quote"),Pair(Symbol("h"),Nil)))) !!!
+*)
+
  
 
-
+(*
+ Pair(Symbol "quote", Pair(Symbol "h", Nil))
+*)
 (*---------------------------------- quasiquote ---------------------------------------------------------*)
 and quasiquote_tag_parser exprs= 
 (match exprs with
 |Nil -> tag_parse (Pair(Symbol("quote"), Pair(Nil, Nil)))
 |Symbol(exprs) ->tag_parse (Pair(Symbol("quote"), Pair(Symbol(exprs), Nil)))
+|String(exprs) ->tag_parse (Pair(Symbol("quote"), Pair(String(exprs), Nil)))
+|Number(exprs) ->tag_parse (Pair(Symbol("quote"), Pair(Number(exprs), Nil)))
+|Bool(exprs) ->tag_parse (Pair(Symbol("quote"), Pair(Bool(exprs), Nil)))
+|Char(exprs) ->tag_parse (Pair(Symbol("quote"), Pair(Char(exprs), Nil)))
+|Pair(Symbol("quote"),rest)-> let tmp = Pair(Symbol("quote"),rest) in
+tag_parse (Pair(Symbol("quote"), Pair(tmp, Nil)))
 |Pair(Symbol("unquote"), Pair(rest,Nil))-> tag_parse rest
 |Pair(Symbol("unquote-splicing"), rest)->raise X_syntax_error
 |Pair(Pair(Symbol("unquote-splicing"),Pair(spliced,Nil)),after)-> tag_parse (unquote_splicing_builder spliced Nil after 1)
 |Pair(before,Pair(Symbol("unquote-splicing"),Pair(spliced,Nil)))-> tag_parse (unquote_splicing_builder spliced before Nil 2)
 |Pair(before,after)-> tag_parse (unquote_splicing_builder Nil before after 3)
 |Vector(args)-> tag_parse(Pair(Symbol( "vector"),(list_to_nested_pairs(quasi_map_tag_parse args))))
-|_-> raise X_syntax_error)
+(* |_-> raise X_syntax_error *) ) 
 
 
 (*--------------------------------- unquote-splicing -----------------------------------------*)
@@ -365,7 +405,8 @@ let tagParsedExprs = map_tag_parse exprs in
 let lengthOfsequence = (List.length tagParsedExprs) in
 (match (lengthOfsequence) with
     |0->Const(Sexpr(Bool(false)))
-    |1->(List.hd tagParsedExprs)
+    (* |1->(List.hd tagParsedExprs)  pass jonathan*)
+    (* |1-> Or(tagParsedExprs)    PASS GILAD*)
     |_->Or(tagParsedExprs))
 
 (*--------------------------- seq --------------------------------------------- *)
@@ -374,7 +415,7 @@ let tagParsedExprs = map_tag_parse exprs in
 let lengthOfsequence = (List.length tagParsedExprs) in
 (match (lengthOfsequence) with
     |0-> Const(Void)
-    |1-> (List.hd tagParsedExprs)
+    |1->  List.hd tagParsedExprs
     |_->Seq(tagParsedExprs))
 
 (*--------------------------- Applic ------------------------------------------- *)
@@ -422,6 +463,7 @@ Reader.read_sexpr string;;
     (**********TESTING**********)
 open Reader;;
 open PC;;
+
 let _tag_string str =
   let sexp = (read_sexpr str) in
   tag_parse_expression sexp;;
@@ -464,10 +506,6 @@ let _assert num str out =
 	(Printf.sprintf
 	   "Failed %.2f with X_syntax_error: Tag parser failed to resolve expression '%s'"num str));;
 
-
-
-
-
 (*Boolean*)
 _assert 1.0 "#t" ( Const (Sexpr (Bool true)));;
 _assert 1.1 "#f" ( Const (Sexpr (Bool false)));;
@@ -492,7 +530,6 @@ _assert 4.0 "\"String\"" (Const (Sexpr (String "String")));;
 _assert 5.0 "'quoting" (Const (Sexpr (Symbol "quoting")));;
 (*_assert 5.1 ",unquoting" (Const (Sexpr (Symbol "unquoting")));; removed - invalid syntax*)
 
-
 (*Symbol*)
 _assert 6.0 "symbol" (Var "symbol");;
 
@@ -504,22 +541,15 @@ _assert 7.0 "(if #t 2 \"abc\")"
 _assert 7.1 "(if #t 2)"
   (If (Const (Sexpr (Bool true)), Const (Sexpr (Number (Int 2))),
        (Const Void)));;
- 
+  
 (*SimpleLambda*)
 _assert 8.0 "(lambda (a b c) d)" (LambdaSimple (["a"; "b"; "c"], Var "d"));;
 _assert 8.1 "(lambda (a b c) (begin d))" (LambdaSimple (["a"; "b"; "c"], Var "d"));;
-
 _assert 8.2 "(lambda (a b c) a b)" (LambdaSimple (["a"; "b"; "c"], Seq [Var "a"; Var "b"]));;
-
-
 _assert 8.3 "(lambda (a b c) (begin a b))" (LambdaSimple (["a"; "b"; "c"], Seq [Var "a"; Var "b"]));;
 _assert 8.4 "(lambda (a b c) (begin))" (LambdaSimple (["a"; "b"; "c"], Const Void));;
-
-
 _assertX 8.5 "(lambda (a b c d d) e f)";;
-
 _assert 8.6 "(lambda () e f)" (LambdaSimple( [], Seq [Var "e"; Var "f"])) ;;
-
 
 (*LambdaOpt*)
 _assert 9.0 "(lambda (a b . c) d)" ( LambdaOpt (["a"; "b"], "c", Var "d"));;
@@ -549,18 +579,22 @@ _assert 11.1 "((lambda (v1 v2) c1 c2 c3) b1 b2)"
 		    Seq [Var "c1"; Var "c2"; Var "c3"]),
       [Var "b1"; Var "b2"]));;
 
-(*Or*)
+
+(* Or*)
 _assert 12.0 "(or #t #f #\\a)"
   (Or
      [Const (Sexpr (Bool true)); Const (Sexpr (Bool false));
       Const (Sexpr (Char 'a'))]);;
 
-_assert 12.1 "(or 'a)"
-      (Const (Sexpr (Symbol "a")));;
+_assert 12.1 "(or 'a)"  (Or [Const (Sexpr (Symbol "a"))]);;
+  
+(* based on forum answers, the case with one expression is only *evaluated* to that expression,
+but its still parsed as an Or expression at this point
+(Const (Sexpr (Symbol "a")));;*)
 
 _assert 12.2 "(or)"
   (Const (Sexpr (Bool false)));;
-
+ 
 (*Define*)
 _assert 13.0 "(define a b)" (Def (Var "a", Var "b"));;
 _assertX 13.1 "(define 5 b)";;
@@ -571,12 +605,11 @@ _assert 14.0 "(set! a 5)" (Set (Var "a", Const (Sexpr (Number (Int 5)))));;
 _assertX 14.1 "(set! define 5)";;
 _assertX 14.2 "(set! \"string\" 5)";;
 
+
 (*Let*)
 _assert 15.0 "(let ((v1 b1)(v2 b2)) c1 c2 c3)"
   (Applic (LambdaSimple (["v1"; "v2"], Seq [Var "c1"; Var "c2"; Var "c3"]), [Var "b1"; Var "b2"]));;
 _assert 15.1 "(let () c1 c2)" (Applic (LambdaSimple ([], Seq [Var "c1"; Var "c2"]), []));;
-
-
 
 (*And*)
 _assert 16.0 "(and)" (Const (Sexpr (Bool true)));;
@@ -587,18 +620,25 @@ _assert 16.2 "(and e1 e2 e3 e4)"
 	   Const (Sexpr (Bool false))),
        Const (Sexpr (Bool false))));;
 
-(*Let* *) 
+(*Let* *)
 _assert 17.0 "(let* () body)" (Applic (LambdaSimple ([], Var "body"), []));;
-
 _assert 17.1 "(let* ((e1 v1)) body)" (Applic (LambdaSimple (["e1"], Var "body"), [Var "v1"]));;
-
 _assert 17.2 "(let* ((e1 v1)(e2 v2)(e3 v3)) body)"
   (Applic (LambdaSimple (["e1"], Applic (LambdaSimple (["e2"], Applic (LambdaSimple (["e3"], Var "body"),
    [Var "v3"])), [Var "v2"])), [Var "v1"]));;
 
 
+(*MIT define*)
 (*
-(*Letrec*)
+The body shouldn't be used in an applic expression.
+_assert 18.0 "(define (var . arglst) . (body))" (Def (Var "var", LambdaOpt ([],"arglst", Applic (Var "body", []))));;*)
+
+_assert 18.0 "(define (var . arglst) . (body))" (_tag_string "(define var (lambda arglst body))");;
+
+(* equivalent to (define (var . arglst) body)  *)
+
+
+(*Letrec
 _assert 19.0 "(letrec ((f1 e1)(f2 e2)(f3 e3)) body)"
   (_tag_string
      "(let ((f1 'whatever)(f2 'whatever)(f3 'whatever))
@@ -606,15 +646,17 @@ _assert 19.0 "(letrec ((f1 e1)(f2 e2)(f3 e3)) body)"
 (let () body))");;
 
 
-    
+    (*
+This output is wrong as the 'body' of the letrec needs to be enclosed in a let expr according to the lectures
 (Applic
  (LambdaSimple (["f1"; "f2"; "f3"],
    Seq
     [Set (Var "f1", Var "e1"); Set (Var "f2", Var "e2");
      Set (Var "f3", Var "e3"); Var "body"]),
  [Const (Sexpr (Symbol "whatever")); Const (Sexpr (Symbol "whatever"));
-      Const (Sexpr (Symbol "whatever"))]));;
+      Const (Sexpr (Symbol "whatever"))]));;*)
 *)
+
 (*Quasiquote*)
 _assert 20.0 "`,x" (_tag_string "x");;
 _assertX 20.01 "`,@x";;
@@ -635,7 +677,11 @@ _assert 20.16 "`" (_tag_string "");;
   _assert 20.17 "`" (_tag_string "");;*)
 
 
+(*Cond*)
+
 (*
+Before the fucking change that the rest of the ribs had to be enclosed in a lambda
+
 _assert 21.0 "(cond (a => b)(c => d))"
   (_tag_string
      "(let ((value a)(f (lambda () b)))
@@ -643,8 +689,24 @@ _assert 21.0 "(cond (a => b)(c => d))"
           ((f) value)
           (let ((value c)(f (lambda () d)))
             (if value
-             ((f) value)))))");;
-*)
+  ((f) value)))))");; *)
+
+_assert 21.0 "(cond (e1 => f1) (e2 => f2))"
+  (_tag_string
+     "
+(let
+((value e1)
+(f (lambda () f1))
+(rest (lambda ()
+ 
+(let ((value e2)(f (lambda () f2))) (if value ((f) value)))
+
+)))
+(if value ((f) value) (rest)))");;
+
+(* Note: the separated line is the expansion of the second cond rib *)
+
+
 _assert 21.1 "(cond (p1 e1 e2) (p2 e3 e4) (p3 e4 e5))"
   (_tag_string
      "(if p1
@@ -661,7 +723,6 @@ _assert 21.2 "(cond (p1 e1 e2) (p2 e3 e4) (else e5 e6) (BAD BAD BAD))"
         (if p2
           (begin e3 e4)
           (begin e5 e6)))");;
-
 
 end;; (* struct Tag_Parser *)
 
