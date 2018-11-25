@@ -1,4 +1,4 @@
-    (**********TESTING**********)
+(**********TESTING**********)
 
 let _tag_string str =
   let sexp = (read_sexpr str) in
@@ -121,8 +121,11 @@ _assert 12.0 "(or #t #f #\\a)"
      [Const (Sexpr (Bool true)); Const (Sexpr (Bool false));
       Const (Sexpr (Char 'a'))]);;
 
-_assert 12.1 "(or 'a)"
-      (Const (Sexpr (Symbol "a")));;
+_assert 12.1 "(or 'a)"  (Or [Const (Sexpr (Symbol "a"))]);;
+  
+(* based on forum answers, the case with one expression is only *evaluated* to that expression,
+but its still parsed as an Or expression at this point
+(Const (Sexpr (Symbol "a")));;*)
 
 _assert 12.2 "(or)"
   (Const (Sexpr (Bool false)));;
@@ -161,7 +164,13 @@ _assert 17.2 "(let* ((e1 v1)(e2 v2)(e3 v3)) body)"
 
 
 (*MIT define*)
-_assert 18.0 "(define (var . arglst) . (body))" (Def (Var "var", LambdaOpt ([],"arglst", Applic (Var "body", []))));;
+(*
+The body shouldn't be used in an applic expression.
+_assert 18.0 "(define (var . arglst) . (body))" (Def (Var "var", LambdaOpt ([],"arglst", Applic (Var "body", []))));;*)
+
+_assert 18.0 "(define (var . arglst) . (body))" (_tag_string "(define var (lambda arglst body))");;
+
+(* equivalent to (define (var . arglst) body)  *)
 
 
 (*Letrec*)
@@ -173,6 +182,7 @@ _assert 19.0 "(letrec ((f1 e1)(f2 e2)(f3 e3)) body)"
 
 
     (*
+This output is wrong as the 'body' of the letrec needs to be enclosed in a let expr according to the lectures
 (Applic
  (LambdaSimple (["f1"; "f2"; "f3"],
    Seq
@@ -203,6 +213,10 @@ _assert 20.16 "`" (_tag_string "");;
 
 
 (*Cond*)
+
+(*
+Before the fucking change that the rest of the ribs had to be enclosed in a lambda
+
 _assert 21.0 "(cond (a => b)(c => d))"
   (_tag_string
      "(let ((value a)(f (lambda () b)))
@@ -210,7 +224,23 @@ _assert 21.0 "(cond (a => b)(c => d))"
           ((f) value)
           (let ((value c)(f (lambda () d)))
             (if value
-             ((f) value)))))");;
+  ((f) value)))))");; *)
+
+_assert 21.0 "(cond (e1 => f1) (e2 => f2))"
+  (_tag_string
+     "
+(let
+((value e1)
+(f (lambda () f1))
+(rest (lambda ()
+ 
+(let ((value e2)(f (lambda () f2))) (if value ((f) value)))
+
+)))
+(if value ((f) value) (rest)))");;
+
+(* Note: the separated line is the expansion of the second cond rib *)
+
 
 _assert 21.1 "(cond (p1 e1 e2) (p2 e3 e4) (p3 e4 e5))"
   (_tag_string
