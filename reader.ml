@@ -44,7 +44,7 @@ end
 let normalize_scheme_symbol str =
   let s = string_to_list str in
   if (andmap
-	(fun ch -> (ch = (lowercase_ascii ch)))
+	(fun ch -> (ch = (Char.lowercase ch)))
 	s) then str
   else Printf.sprintf "|%s|" str;;
 
@@ -64,6 +64,34 @@ let _falseParser_ =
   PC.pack _falsep_ (fun(s,f) -> Bool(false));;
 
 let _Boolean_ = PC.disj _trueParser_ _falseParser_;;
+
+
+(*--------------Symbol----------------*)
+let _bang_ = PC.char '!';;
+let _dollar_ = PC.char '$';;
+let _exp_ = PC.char '^';;
+let _kohavit_ = PC.char '*';;
+let _makaf_ = PC.char '-';;
+let _low_makaf_ = PC.char '_';;
+let _equal_ = PC.char '=';;
+let _plus_ = PC.char '+';;
+let _meshulash_open_ = PC.char '<';;
+let _meshulash_close_ = PC.char '>';;
+let _question_ = PC.char '?';;
+let _forward_slash_ = PC.char '/';;
+let _dots_ = PC.char ':';;
+let _letters_ = PC.range_ci 'a' 'z';;
+let _digit_chars_ = PC.range '0' '9' ;;
+
+let _parsed_=
+let _capital_letters = PC.range 'A' 'Z' in
+ PC.pack _capital_letters (fun (ch) -> lowercase_ascii ch);;
+
+let _SymbolChar_ = PC.disj_list [_parsed_; _digit_chars_;_letters_;_bang_; _dollar_; _exp_; _kohavit_; _makaf_; _low_makaf_; _equal_; _plus_; _meshulash_open_; _meshulash_close_; _question_; _forward_slash_; _dots_;];;
+
+let _Symbol_ =
+  let _SymbolChars_ = PC.plus _SymbolChar_ in
+  PC.pack _SymbolChars_ (fun (chars) ->  Symbol(list_to_string chars));;
 
 
 (* ----------------------------- number ----------------------------- *)
@@ -96,6 +124,12 @@ let _Float_=
     let _dot_natural_ = PC.caten _dot_ _Natural_val_ in
       let _float_format_ = PC.caten _Integer_val_ _dot_natural_ in
         PC.pack _float_format_ (fun(n, (dot, n2)) ->  Number(Float(float_of_string(n ^ "." ^ n2))));;
+
+let _Float_val_=
+  let _dot_ = PC.char '.' in
+    let _dot_natural_ = PC.caten _dot_ _Natural_val_ in
+      let _float_format_ = PC.caten _Integer_val_ _dot_natural_ in
+        PC.pack _float_format_ (fun(n, (dot, n2)) -> float_of_string( n ^ "." ^ n2));;
 
 
 
@@ -143,12 +177,6 @@ let _dot_ = PC.char '.' in
 
 (*--------------------------- Sceintific Notation ---------------------------------------*)
 
-let _Float_val_=
-  let _dot_ = PC.char '.' in
-    let _dot_natural_ = PC.caten _dot_ _Natural_val_ in
-      let _float_format_ = PC.caten _Integer_val_ _dot_natural_ in
-        PC.pack _float_format_ (fun(n, (dot, n2)) -> float_of_string( n ^ "." ^ n2));;
-
 
 let _e_ = PC.char_ci 'e' ;;
 let _prefix_and_e_ = PC.caten _Integer_val_ _e_;;
@@ -163,8 +191,9 @@ PC.pack _sceintific_format_float_ (fun ((before,e),after)-> Number(Float(before 
 
 let _sceintific_ = PC.disj _sceintific_notation_float_ _sceintific_notation_int_;;
 
-let _Number_ = PC.disj_list [_sceintific_;_HexFloat_;_Float_;_HexInteger_; _Integer_; ] ;;
-
+let _only_number_ = PC.disj_list [_sceintific_;_HexFloat_;_Float_;_HexInteger_; _Integer_; ];;
+let _Number_ =
+PC.not_followed_by _only_number_ _SymbolChar_;;
 (* ----------------------------- char ------------------------------- *)
 
 let _backslash_ = (PC.char '\\');;
@@ -249,34 +278,6 @@ let _StringChar_ = PC.disj_list [_StringMetaChar_ ;_StringHexChar_;_StringLitera
 let _String_ =
 let kleeneString = PC.caten _merchaot_ (PC.caten (PC.star _StringChar_) _merchaot_) in
 PC.pack kleeneString (fun(x, (s,y))-> String(list_to_string s));;
-
-
-(*--------------Symbol----------------*)
-let _bang_ = PC.char '!';;
-let _dollar_ = PC.char '$';;
-let _exp_ = PC.char '^';;
-let _kohavit_ = PC.char '*';;
-let _makaf_ = PC.char '-';;
-let _low_makaf_ = PC.char '_';;
-let _equal_ = PC.char '=';;
-let _plus_ = PC.char '+';;
-let _meshulash_open_ = PC.char '<';;
-let _meshulash_close_ = PC.char '>';;
-let _question_ = PC.char '?';;
-let _forward_slash_ = PC.char '/';;
-let _dots_ = PC.char ':';;
-let _letters_ = PC.range_ci 'a' 'z';;
-let _digit_chars_ = PC.range '0' '9' ;;
-
-let _parsed_=
-let _capital_letters = PC.range 'A' 'Z' in
- PC.pack _capital_letters (fun (ch) -> lowercase_ascii ch);;
-
-let _SymbolChar_ = PC.disj_list [_parsed_; _digit_chars_;_letters_;_bang_; _dollar_; _exp_; _kohavit_; _makaf_; _low_makaf_; _equal_; _plus_; _meshulash_open_; _meshulash_close_; _question_; _forward_slash_; _dots_;];;
-
-let _Symbol_ =
-  let _SymbolChars_ = PC.plus _SymbolChar_ in
-  PC.pack _SymbolChars_ (fun (chars) ->  Symbol(list_to_string chars));;
 
 
 
@@ -461,6 +462,7 @@ a;;
 let read_sexprs string =
 let (a,b)=(PC.star _Sexp_) (string_to_list (string)) in
 a;;
+
 
 
 end;; (* struct Reader *)
