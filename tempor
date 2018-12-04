@@ -1,0 +1,303 @@
+diff --git a/readme.txt b/readme.txt
+index e69de29..7bdc72e 100644
+--- a/readme.txt
++++ b/readme.txt
+@@ -0,0 +1,9 @@
++Zohar Reuveny, ID: 302805692
++Keren Herman, ID: 204544688
++
++I (We) assert that the work we submitted is 100% our own. We have not received any
++part from any other student in the class, nor have we give parts of it for use to others.
++Nor have we used code from other sources: Courses taught previously at this university,
++courses taught at other universities, various bits of code found on the internet, etc. We
++realize that should our code be found to contain code from other sources, that a formal
++case shall be opened against us with ￿￿￿￿￿ ￿￿￿￿ ,in pursuit of disciplinary action.
+\ No newline at end of file
+diff --git a/semantic-analyzer.scm b/semantic-analyzer.scm
+index dcbc2ee..80662e6 100644
+--- a/semantic-analyzer.scm
++++ b/semantic-analyzer.scm
+@@ -1,15 +1,277 @@
++(define second
++    (lambda (exp)
++        (cadr exp)))
++        
++(define third
++    (lambda (exp)
++        (caddr exp)))
++        
++(define fourth
++    (lambda (exp)
++        (cadddr exp)))
++        
++(define empty?
++    (lambda (l)
++        (equal? (length l) 0)))
++
++(define applic-remove-applic-lambda-nil
++    (lambda (exp)
++        (if (and (equal? (car (second exp)) 'lambda-simple)
++                (empty? (second (second exp)))
++                (empty? (third exp)))
++            ;(empty? (third exp))
++            (remove-applic-lambda-nil (third (second exp)))
++            (map remove-applic-lambda-nil exp))))
++
+ (define remove-applic-lambda-nil
+-  ;; fill in the empty-lambda application elimination details here
+-  )
++    ;; fill in the empty-lambda application elimination details here
++    (lambda (exp)
++        (cond   ((not (list? exp)) exp)
++                ((empty? exp) exp)
++                ((equal? (car exp) 'lambda-simple)
++                `(lambda-simple ,(second exp) ,(remove-applic-lambda-nil (third exp))))
++                ((equal? (car exp) 'lambda-opt)
++                `(lambda-opt ,(second exp) ,(third exp) ,(remove-applic-lambda-nil (fourth exp))))
++                ((equal? (car exp) 'applic) (applic-remove-applic-lambda-nil exp))
++                (else (map remove-applic-lambda-nil exp)))))
++
++        
++(define or-list
++    (lambda (l)
++        (if (empty? l) #f
++            (or (car l) (or-list (cdr l))))))
++        
++
++        
++(define has-bound?
++    (lambda (param bound)
++        (lambda (exp)
++            (cond   ((not (list? exp)) #f)
++                    ((empty? exp) #f)
++                    ((and   (equal? (car exp) 'var)
++                            (equal? (second exp) param)) bound)
++                    ((equal? (car exp) 'lambda-simple) (if  (member param (second exp))
++                                                            #f
++                                                            ((has-bound? param #t) (third exp))))
++                    ((equal? (car exp) 'lambda-opt) (if (or (member param (second exp)) (equal? param (third exp)))
++                                                        #f
++                                                        ((has-bound? param #t) (fourth exp))))
++                    (else (or-list (map (has-bound? param bound) exp)))))))
++                    
++                    
++(define has-get?
++    (lambda (param)
++        (lambda (exp)
++            (cond   ((not (list? exp)) #f)
++                    ((empty? exp) #f)
++                    ((and   (equal? (car exp) 'var)
++                            (equal? (second exp) param)) #t)
++                    ((equal? (car exp) 'lambda-simple) (if  (member param (second exp))
++                                                            #f
++                                                            ((has-get? param) (third exp))))
++                    ((equal? (car exp) 'lambda-opt) (if (or (member param (second exp)) (equal? param (third exp)))
++                                                        #f
++                                                        ((has-get? param) (fourth exp))))
++                    ((and   (equal? (car exp) 'set)
++                            (equal? (second (second exp)) param)) ((has-get? param) (third exp)))
++                    (else (or-list (map (has-get? param) exp)))))))
++                                            
++(define has-set?
++    (lambda (param)
++        (lambda (exp)
++            (cond   ((not (list? exp)) #f)
++                    ((empty? exp) #f)
++                    ((equal? (car exp) 'lambda-simple) (if  (member param (second exp))
++                                                            #f
++                                                            ((has-set? param) (third exp))))
++                    ((equal? (car exp) 'lambda-opt) (if (or (member param (second exp)) (equal? param (third exp)))
++                                                        #f
++                                                        ((has-set? param) (fourth exp))))
++                    ((and   (equal? (car exp) 'set)
++                            (equal? (second (second exp)) param)) #t)
++                    (else (or-list (map (has-set? param) exp)))))))
++                    
+ 
++                    
++(define need-boxing?
++    (lambda (exp params)
++        (let ((bools (map (lambda (param)
++                            (and    ((has-bound? param #f) exp)
++                                    ((has-get? param) exp)
++                                    ((has-set? param) exp))) params)))
++             (filter (lambda (param)
++                        (element-at (index-of params param) bools)) params))))
++
++
++(define set-get->box 
++    (lambda (params)
++        (lambda (exp)
++            (cond   ((empty? params) exp) 
++                    ((not (list? exp)) exp)
++                    ((empty? exp) exp)
++                    ((and   (equal? (car exp) 'var)
++                            (member (second exp) params)) `(box-get ,exp))
++                    ((equal? (car exp) 'lambda-simple)
++                     (let ((filtered-params (filter (lambda (param)
++                                                    (not (member param (second exp)))) params))
++                           (body (third exp)))
++                        `(lambda-simple ,(second exp) ,((set-get->box filtered-params) body))))
++                    ((equal? (car exp) 'lambda-opt)
++                     (let ((filtered-params (filter (lambda (param)
++                                                        (not (or (member param (second exp))
++                                                                 (equal? param (third exp))))) params))
++                           (body (fourth exp)))
++                        `(lambda-opt ,(second exp) ,(third exp) ,((set-get->box filtered-params) body))))
++                    ((and   (equal? (car exp) 'set)
++                            (member (second (second exp)) params)) `(box-set ,(second exp)
++                                                                             ,((set-get->box params) (third exp))))
++                    (else (map (set-get->box params) exp))))))
++                    
++        
++(define first-params-box
++    (lambda (params)
++        (map (lambda (param)
++                (list 'set `(var ,param) `(box (var ,param)))) params)))
++                
++(define update-box
++    (lambda (body params)
++        (let ((first-params (first-params-box params)))
++            (if (empty? first-params)
++                body
++                (let ((newBody ((set-get->box params) body)))
++                    (if (equal? (car newBody) 'seq)
++                        `(seq ,(append first-params (second newBody)))
++                        `(seq ,(append first-params (list newBody)))))))))
++        
++        
+ (define box-set
+   ;; fill in the variable boxing details here
+-  )
++    (lambda (exp)
++        (cond   ((not (list? exp)) exp)
++                ((empty? exp) exp)
++                ((equal? (car exp) 'lambda-simple)
++                 (let* ((params (second exp))
++                        (body (third exp))
++                        (params-to-box (need-boxing? body params)))
++                    `(lambda-simple ,params ,(update-box (box-set body) params-to-box))))
++                ((equal? (car exp) 'lambda-opt)
++                 (let* ((rest (third exp))
++                        (params (append (second exp) (list rest)))
++                        (body (fourth exp))
++                        (params-to-box (need-boxing? body params)))
++                    `(lambda-opt ,(second exp) ,rest ,(update-box (box-set body) params-to-box))))
++                (else (map box-set exp)))))
++
++
++(define index-of
++    (lambda (l element)
++        (index-of-rec l element 0)))
++ 
++(define index-of-rec
++    (lambda (l element index)
++        (if (empty? l) 
++                -1
++                (if (equal? (car l) element)
++                        index
++                        (index-of-rec (cdr l) element (+ index 1))))))
++
++(define element-at
++    (lambda (index l)
++        (if (= index 0) (car l)
++            (element-at (- index 1) (cdr l)))))
++
++(define simulated_scope->params
++    (lambda (l)
++        (map car l)))
++        
++(define get-bvar
++    (lambda (l element)
++            (element-at (index-of (simulated_scope->params l) element) l)))
++
++(define inc-major
++    (lambda (l)
++        (map (lambda (x) `(,(car x) ,(+ (second x) 1), (third x))) l))) 
++
++(define add-params-to-simulated_scope
++    (lambda (simulated_scope params)
++        (append (map (lambda (x) (list x -1 (index-of params x)))
++                    params) simulated_scope)))
++                    
++(define analyse
++    (lambda (simulated_scope params)
++        (lambda (exp)
++            (cond   ((not (list? exp)) exp)
++                    ((empty? exp) exp)
++                    ((equal? (car exp) 'var) 
++                        (cond   ((member (second exp) params)
++                                `(pvar ,(second exp) ,(index-of params (second exp))))
++                                ((member (second exp) (map car simulated_scope))
++                                 (append '(bvar) (get-bvar simulated_scope (second exp))))
++                                (else `(fvar ,(second exp)))))
++                    ((equal? (car exp) 'lambda-simple)
++                     (let ((params (second exp))
++                           (body (third exp)))
++                    `(lambda-simple ,params ,((analyse (add-params-to-simulated_scope (inc-major simulated_scope) params)
++                                                            params) body))))
++                    ((equal? (car exp) 'lambda-opt)
++                     (let* ((rest (third exp))
++                           (params (append (second exp) (list rest)))
++                           (body (fourth exp)))
++                    `(lambda-opt ,(second exp) ,rest ,((analyse (add-params-to-simulated_scope (inc-major simulated_scope) params)
++                                                                params) body))))
++                    (else (map (analyse simulated_scope params) exp))))))
++            
+ 
+ (define pe->lex-pe
+   ;; fill in the lexical addressing details here
+-  )
++  (lambda (exp) ((analyse '() '()) exp)))
++
++
++(define create-false-list
++    (lambda (len)
++        (if (equal? len 0)
++            '()
++            (append (list #f) (create-false-list (- len 1))))))  
+ 
++                
++(define annotate
++    (lambda (exp tp?)
++        (if (or (not (list? exp))
++                (empty? exp)
++                (equal? (car exp) 'const)
++                (equal? (car exp) 'pvar)
++                (equal? (car exp) 'bvar)
++                (equal? (car exp) 'fvar))
++            exp
++            (if (equal? (car exp) 'applic)
++                (if tp?
++                    `(tc-applic ,(annotate (second exp) #f) ,(map annotate (third exp) (create-false-list (length (third exp)))))
++                    `(applic ,(annotate (second exp) #f) ,(map annotate (third exp) (create-false-list (length (third exp))))))
++                (cond 
++                    ((equal? (car exp) 'or) `(or ,(map annotate (second exp) 
++                                                        (append (create-false-list (- (length (second exp)) 1)) (list tp?)))))
++                    ((equal? (car exp) 'if3) `(if3 
++                                                ,(annotate (second exp) #f) 
++                                                ,(annotate (third exp) tp?)
++                                                ,(annotate (fourth exp) tp?)))
++                    ((equal? (car exp) 'define) `(define 
++                                                    ,(second exp) 
++                                                    ,(annotate (third exp) #f)))
++                    ((equal? (car exp) 'lambda-simple) `(lambda-simple 
++                                                            ,(second exp) 
++                                                            ,(annotate (third exp) #t)))
++                    ((equal? (car exp) 'lambda-opt) `(lambda-opt 
++                                                    ,(second exp) 
++                                                    ,(third exp)
++                                                    ,(annotate (fourth exp) #t)))
++                    ((equal? (car exp) 'seq) `(seq ,(map annotate (second exp) 
++                                                        (append (create-false-list (- (length (second exp)) 1)) (list tp?))))) 
++                                                
++                    ((equal? (car exp) 'set) `(set
++                                                ,(second exp) 
++                                                ,(annotate (third exp) #f)))
++                    (else (map annotate exp (create-false-list (length exp)))))))))
++  
+ (define annotate-tc
+   ;; fill in the tail-call annotation details here
+-  )
++  (lambda (exp) (annotate exp #f)))
+\ No newline at end of file
