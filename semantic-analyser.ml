@@ -66,28 +66,48 @@ module type SEMANTICS = sig
 end;;
 
 module Semantics : SEMANTICS = struct
+let second e= (List.hd (List.tl e));;
 
-let rec annotate_lex e  =  match e with
+let rec annotate_lex e paramsList boundList =  match e with
   | Const(e) -> Const'(e)
-  | If (testExp , thenExp , elseExp) -> If'(annotate_lex testExp , annotate_lex thenExp, annotate_lex elseExp)
-  | Seq(expr_list) ->  Seq'(map_annotate expr_list)
-  | Set (name , value) -> Set'(annotate_lex name, annotate_lex value)
-  | Def (name , value) -> Def'(annotate_lex name, annotate_lex value)
-  | Or(expr_list) -> Or'(map_annotate  expr_list)
-  | LambdaSimple (args, body) -> LambdaSimple'(args, annotate_lex body)
-  | LambdaOpt (args, vs, body) -> LambdaOpt' (args, vs, annotate_lex body)
+  | If (testExp , thenExp , elseExp) -> If'(annotate_lex testExp paramsList boundList  , annotate_lex thenExp paramsList boundList , annotate_lex elseExp paramsList boundList )
+  | Seq(expr_list) ->  Seq'(map_annotate expr_list paramsList boundList )
+  | Set (name , value) -> Set'(annotate_lex name paramsList boundList , annotate_lex value paramsList boundList )
+  | Def (name , value) -> Def'(annotate_lex name paramsList boundList , annotate_lex value paramsList boundList )
+  | Or(expr_list) -> Or'(map_annotate  expr_list paramsList boundList )
+  | LambdaSimple (args, body) ->  lambdaSimpleHandler args body paramsList boundList
+  | LambdaOpt (args, vs, body) -> LambdaOpt' (args, vs, annotate_lex body args (num_of_lambdas + 1))
   | Applic (function_name , args) -> get_type_of_applic function_name args
-  | Var(e) -> get_type_of_var e 
-;;
+  | Var(e) -> get_type_of_var e paramsList
 
-let map_annotate list = List.map annotate_lex list ;; 
+(*------------------------------------------ need to implement new_params and new_boundlist*)
+and lambdaSimpleHandler  args body paramsList boundList  = 
+let new_params= in 
+let new_boundlist = in 
+let new_body = (annotate_lex body new_params new_boundlist) in
+LambdaSimple'(args, new_body)
 
-let get_type_of_applic function_name args = raise X_not_yet_implemented
+and map_annotate list paramsList boundList  = List.map (annotate_lex paramsList boundList) list  
 
-let get_type_of_var e = raise X_not_yet_implemented
+and get_type_of_applic function_name args = raise X_not_yet_implemented
+
+and  get_type_of_var e paramsList= 
+let curSecond = (second e) in
+if (List.mem curSecond paramsList) then
+let index = indexInParametersList curSecond paramsList 0 in
+VarParam(curSecond, index);;
 
 
-let annotate_lexical_addresses e = annotate_lex e;;
+
+
+
+let rec indexInParametersList name params i = 
+if List.empty params then -1
+else if (List.hd params) == name then i 
+    else indexInParametersList (List.tl) name (i+1)
+
+
+let annotate_lexical_addresses e = annotate_lex e [] 0 ;;
 
 let annotate_tail_calls e = raise X_not_yet_implemented;;
 
