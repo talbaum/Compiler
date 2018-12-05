@@ -76,48 +76,55 @@ let rec annotate_lex e paramsList boundList =  match e with
   | Set (name , value) -> Set'(annotate_lex name paramsList boundList , annotate_lex value paramsList boundList )
   | Def (name , value) -> Def'(annotate_lex name paramsList boundList , annotate_lex value paramsList boundList )
   | Or(expr_list) -> Or'(map_annotate  expr_list paramsList boundList )
-  (* | LambdaSimple (args, body) ->  lambdaSimpleHandler args body boundList *)
-  | LambdaSimple (args, body) ->  LambdaSimple'(args, (annotate_lex body args (expand_bound_list((higher_lambda_level(boundList))args))))
-  (* | LambdaOpt (args, vs, body) -> lambdaOptHandler args vs body boundList *)
+  | LambdaSimple (args, body) ->  lambdaSimpleHandler args body boundList
+  | LambdaOpt (args, vs, body) -> lambdaOptHandler args vs body boundList
   | Applic (function_name , args) -> get_type_of_applic function_name args
-  (* | Var(e) -> get_type_of_var e paramsList *)
-  |_ -> raise X_not_yet_implemented
+  | Var(e) -> get_type_of_var e paramsList boundList
 
 (*------------------------------------------ need to implement new_boundlist*)
-(* and lambdaSimpleHandler  args body boundList  = 
+ and lambdaSimpleHandler  args body boundList  = 
 let incLevel_boundList = (higher_lambda_level boundList) in
 let new_boundlist = expand_bound_list incLevel_boundList args in 
 let new_body = (annotate_lex body args new_boundlist) in
-LambdaSimple'(args, new_body)  *)
-(*
+LambdaSimple'(args, new_body)  
+
 and lambdaOptHandler  args vs body boundList  = 
-let new_args = args @ [vs] in 
-let incLevel_boundList = higher_lambda_level boundList in
-let new_boundlist = expand_bound_list incLevel_boundList new_args in 
-let new_body = (annotate_lex body new_args new_boundlist) in
-LambdaOpt' (args, vs, new_boundlist) *)
-
-and map_annotate list paramsList boundList  = List.map (fun(element) -> annotate_lex element paramsList boundList) list  
-
-and get_type_of_applic function_name args = raise X_not_yet_implemented
+let incLevel_boundList = (higher_lambda_level boundList) in
+let new_vs_boundlist = expand_bound_list incLevel_boundList [vs] in 
+let new_boundlist = expand_bound_list new_vs_boundlist args in 
+let new_body = (annotate_lex body args new_boundlist) in
+LambdaOpt'(args,vs, new_body)  
 
 and expand_bound_list boundList params_to_add =
 let new_list = List.map (fun(param)-> [param ; (string_of_int (-1)) ;  (string_of_int (indexInParametersList param params_to_add 0))]) params_to_add in
 new_list @ boundList 
 
 and higher_lambda_level boundList = 
-List.map (fun(param)-> [(List.hd param) ; (string_of_int ( (int_of_string (second param))+1)) ;  (List.nth param 3)]) boundList
+List.map (fun(param)-> [(List.hd param) ; (string_of_int ((int_of_string (List.nth param 1))+1)) ;  (List.nth param 2)]) boundList
 
 and  indexInParametersList name params i = 
-if List.empty params then -1
+if List.length params == 0 then -1
 else if (List.hd params) == name then i 
-    else indexInParametersList (List.tl) name (i+1)
+    else indexInParametersList name (List.tl params) (i+1)
+    
+and map_annotate list paramsList boundList  = List.map (fun(element) -> annotate_lex element paramsList boundList) list  
 
-and  get_type_of_var e paramsList= 
-let curSecond = (second e) in
-if (List.mem curSecond paramsList) then
-let index = indexInParametersList curSecond paramsList 0 in
-VarParam(curSecond, index);;
+and get_type_of_applic function_name args = raise X_not_yet_implemented
+
+
+and  get_type_of_var e paramsList boundList= 
+if (List.mem e paramsList) then
+let index = indexInParametersList e paramsList 0 in
+Var'(VarParam(e, index))
+else
+let boundVarNames = List.map (fun(triplet)->List.hd triplet) boundList in
+if (List.mem e boundVarNames) then
+let tripletindex = indexInParametersList e boundVarNames 0 in
+let currentTriplet = List.nth boundList tripletindex in
+let majorIndex = int_of_string (List.nth currentTriplet 1) in
+let minorIndex = int_of_string (List.nth currentTriplet 2) in
+Var'(VarBound(e,majorIndex,minorIndex))
+else Var'(VarFree(e));;
 
 
 
