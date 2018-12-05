@@ -140,10 +140,11 @@ let rec annotate_tp e in_tp =  match e with
   | Applic' (function_name , args) -> if in_tp then ApplicTP'((annotate_tp function_name true), (map_annotate_tp_all_false args ))
             else Applic'((annotate_tp function_name false), map_annotate_tp_all_false args )
   | Var'(e) -> Var'(e)
-  | Box'(e) -> raise X_not_yet_implemented
-  | BoxGet'(e) ->raise X_not_yet_implemented
-  | BoxSet'(e,r) -> raise X_not_yet_implemented 
-  | ApplicTP'(e,r) ->raise X_not_yet_implemented  
+  | Box'(e) -> Box'(e) 
+  | BoxGet'(e) -> BoxGet'(e)
+  | BoxSet'(e,expr) ->  BoxSet'(e,annotate_tp expr false ) 
+  (* | ApplicTP'(e,r) ->raise X_not_yet_implemented   *)
+  | _ ->raise X_syntax_error  
 
 and map_annotate_tp list    = 
 let reversed = List.rev list in
@@ -153,7 +154,6 @@ let last = List.hd reversed in
 let annotatedLast = annotate_tp last true in
 let annotatedAllButLast = List.map (fun(element) -> annotate_tp element false) allButLast  in
 annotatedAllButLast @ [annotatedLast]
-
 
 and map_annotate_tp_all_false list  = List.map (fun(element) -> annotate_tp element false) list  ;;
 
