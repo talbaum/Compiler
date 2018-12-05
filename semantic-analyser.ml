@@ -78,7 +78,7 @@ let rec annotate_lex e paramsList boundList =  match e with
   | Or(expr_list) -> Or'(map_annotate  expr_list paramsList boundList )
   | LambdaSimple (args, body) ->  lambdaSimpleHandler args body boundList
   | LambdaOpt (args, vs, body) -> lambdaOptHandler args vs body boundList
-  | Applic (function_name , args) -> get_type_of_applic function_name args
+  | Applic (function_name , args) -> Applic'((annotate_lex function_name paramsList boundList), (map_annotate args paramsList boundList))
   | Var(e) -> get_type_of_var e paramsList boundList
 
 (*------------------------------------------ need to implement new_boundlist*)
@@ -109,7 +109,6 @@ else if (List.hd params) == name then i
     
 and map_annotate list paramsList boundList  = List.map (fun(element) -> annotate_lex element paramsList boundList) list  
 
-and get_type_of_applic function_name args = raise X_not_yet_implemented
 
 
 and  get_type_of_var e paramsList boundList= 
@@ -128,12 +127,39 @@ else Var'(VarFree(e));;
 
 
 
+let rec annotate_tp e in_tp =  match e with
+  | Const'(e) -> Const'(e)
+  | If' (testExp , thenExp , elseExp) -> if in_tp then If'(annotate_tp testExp false,annotate_tp thenExp true,annotate_tp elseExp true) else 
+    If'(annotate_tp testExp false,annotate_tp thenExp false,annotate_tp elseExp false)
+  | Seq'(expr_list) ->  if in_tp then Seq'(map_annotate_tp expr_list)else Seq'(map_annotate_tp_all_false expr_list)
+  | Set' (name , value) -> Set'(annotate_tp name false , annotate_tp value false)
+  | Def' (name , value) -> Def'(annotate_tp name false , annotate_tp value false )
+  | Or'(expr_list) -> if in_tp then Or'(map_annotate_tp  expr_list) else Or'(map_annotate_tp_all_false expr_list)
+  | LambdaSimple' (args, body) ->  LambdaSimple' (args,(annotate_tp body true))
+  | LambdaOpt' (args, vs, body) -> LambdaOpt' (args, vs, (annotate_tp body true))
+  | Applic' (function_name , args) -> if in_tp then ApplicTP'((annotate_tp function_name true), (map_annotate_tp_all_false args ))
+            else Applic'((annotate_tp function_name false), map_annotate_tp_all_false args )
+  | Var'(e) -> Var'(e)
+  | Box'(e) -> raise X_not_yet_implemented
+  | BoxGet'(e) ->raise X_not_yet_implemented
+  | BoxSet'(e,r) -> raise X_not_yet_implemented 
+  | ApplicTP'(e,r) ->raise X_not_yet_implemented  
+
+and map_annotate_tp list    = 
+let reversed = List.rev list in
+let tail = List.tl reversed in
+let allButLast = List.rev tail in
+let last = List.hd reversed in
+let annotatedLast = annotate_tp last true in
+let annotatedAllButLast = List.map (fun(element) -> annotate_tp element false) allButLast  in
+annotatedAllButLast @ [annotatedLast]
 
 
+and map_annotate_tp_all_false list  = List.map (fun(element) -> annotate_tp element false) list  ;;
 
 let annotate_lexical_addresses e = annotate_lex e [] [] ;;
 
-let annotate_tail_calls e = raise X_not_yet_implemented;;
+let annotate_tail_calls e =  annotate_tp e false;;
 
 let box_set e = raise X_not_yet_implemented;;
 
