@@ -1,4 +1,4 @@
 utop
-#use "tag-parser.ml";;
-open Tag_Parser;;
+#use "semantic-analyser.ml";;
+open Semantics;;
 test "(define x 1)";;
