@@ -63,11 +63,10 @@ module type SEMANTICS = sig
   val annotate_lexical_addresses : expr -> expr'
   val annotate_tail_calls : expr' -> expr'
   val box_set : expr' -> expr'
+  val test :  string -> expr'
 end;;
 
 module Semantics : SEMANTICS = struct
-let second e= (List.hd (List.tl e));;
-
 
 let rec annotate_lex e paramsList boundList =  match e with
   | Const(e) -> Const'(e)
@@ -118,7 +117,7 @@ Var'(VarParam(e, index))
 else
 let boundVarNames = List.map (fun(triplet)->List.hd triplet) boundList in
 if (List.mem e boundVarNames) then
-let tripletindex = indexInParametersList e boundVarNames 0 in
+let tripletindex = (indexInParametersList e boundVarNames 0)in
 let currentTriplet = List.nth boundList tripletindex in
 let majorIndex = int_of_string (List.nth currentTriplet 1) in
 let minorIndex = int_of_string (List.nth currentTriplet 2) in
@@ -157,11 +156,100 @@ annotatedAllButLast @ [annotatedLast]
 
 and map_annotate_tp_all_false list  = List.map (fun(element) -> annotate_tp element false) list  ;;
 
+
+let rec annotate_box e box_args=  match e with
+| Const'(e) -> Const'(e)
+| If' (testExp , thenExp , elseExp) -> If'(annotate_box testExp box_args,annotate_box thenExp box_args,annotate_box elseExp box_args)
+| Seq'(expr_list) ->  Seq'(map_annotate_box expr_list box_args)
+(* | Set' (name, value) -> check_smthg *)
+| Def' (name , value) -> Def'(annotate_box name box_args , annotate_box value box_args)
+| Or'(expr_list) -> Or'(map_annotate_box  expr_list box_args) 
+| LambdaSimple' (args, body) -> 
+     LambdaSimple' (args,annotate_box body box_args)
+| LambdaOpt' (args, vs, body) -> 
+    LambdaOpt' (args, vs, annotate_box body box_args)
+| Applic' (function_name , args) -> Applic'((annotate_box function_name box_args), map_annotate_box args box_args)
+| ApplicTP'(function_name,args) -> ApplicTP'((annotate_box function_name box_args),map_annotate_box args box_args)
+| Var'(VarParam(e, minor))  ->Var'(VarParam(e, minor))
+(* | Var'(VarBound(e,major, minor)) -> check_other_smthg *)
+| Var'(VarFree(e))  -> Var'(VarFree(e))
+| Box'(e) -> Box'(e) 
+| BoxGet'(e) -> BoxGet'(e)
+| BoxSet'(e,expr) ->  BoxSet'(e,annotate_box expr box_args)  
+| _ ->raise X_syntax_error
+
+and map_annotate_box list box_args  = List.map (fun(element) -> annotate_box element box_args ) list  
+
+
+(* and should_box e var = 
+let read_lambdas = is_read_appaerance e var in
+let write_lambdas = is_write_appearence e var in
+let clean_read_lambdas = remove_true read_lambdas in
+let clean_write_lambdas = remove_true write_lambdas in
+if List.length clean_read_lambdas > 0 && List.length clean_write_lambdas > 0 then
+List.map(fun(elem) -> (( if List.mem elem clean_read_lambdas == false then return true ))) clean_write_lambdas
+List.map(fun(elem) -> (( if List.mem elem clean_write_lambdas == false then return true ))) clean_read_lambdas
+return false *)
+
+
+and remove_true list =
+let predicate (element,_) = element != true in
+List.filter (predicate) list
+(* 
+
+and is_read_appaerance e var = match e with
+  | Const'(e) -> []
+  | Var' (e) -> (match var with
+       |Var'(v) ->  if e == v then [true] else []
+       | _ -> raise X_not_yet_implemented)
+  | Box' (e)-> []
+  | BoxGet' (e) ->[]
+  | BoxSet'(e,p) -> []
+  | If' (test, _then, _else) -> (is_read_appaerance test var) @ (is_read_appaerance _then var) @ (is_read_appaerance _else var)
+  | Seq' (expr_list) -> map_is_read expr_list var
+  | Set' (name,value) -> (is_read_appaerance name var) @ (is_read_appaerance value var)
+  | Def'(name,value) -> (is_read_appaerance name var) @ (is_read_appaerance value var)
+  | Or' (expr_list) -> map_is_read expr_list var
+  | LambdaSimple' (args, body) ->  let parsed_body = is_read_appaerance body var in
+                                   if parsed_body == [] then [] else [e]
+  | LambdaOpt' (args,vs, body) -> let parsed_body = is_read_appaerance body var in
+                                   if parsed_body == [] then [] else [e]
+  | Applic' (function_name , args) -> (is_read_appaerance function_name var)  @ (is_read_appaerance args var) 
+  | ApplicTP' (function_name , args) -> (is_read_appaerance function_name var)  @ (is_read_appaerance args var) 
+
+and map_is_read list var  = List.map (fun(element) -> is_read_appaerance element var ) list  
+
+and is_write_appearence e var = match e with
+  | Const'(e) -> []
+  | Var' (e) -> []
+  | Box' (e)-> []
+  | BoxGet' (e) ->[]
+  | BoxSet'(e) -> []
+  | If' (test, _then, _else) -> (is_write_appearence test var) @ (is_write_appearence _then var) @ (is_write_appearence _else var)
+  | Seq' (expr_list) -> map_is_write expr_list var
+  | Set' (name,value) -> (match var with
+       |Var'(v) ->  if name == v then [true] else []
+       | _ -> raise X_not_yet_implemented)
+  | Def'(name,value) -> (is_write_appearence name var) @ (is_write_appearence value var)
+  | Or' (expr_list) -> map_is_write expr_list var
+  | LambdaSimple' (args, body) ->  let parsed_body = is_write_appearence body var in
+                                   if parsed_body == [] then [] else [e]
+  | LambdaOpt' (args,vs, body) -> let parsed_body = is_write_appearence body var in
+                                   if parsed_body == [] then [] else [e]
+  | Applic' (function_name , args) -> (is_write_appearence function_name var)  @ (is_write_appearence args var) 
+  | ApplicTP' (function_name , args) -> (is_write_appearence function_name var)  @ (is_write_appearence args var) 
+
+  and map_is_write list var  = List.map (fun(element) -> is_write_appearence element var ) list ;; *)
+  ;;
+
+
 let annotate_lexical_addresses e = annotate_lex e [] [] ;;
 
 let annotate_tail_calls e =  annotate_tp e false;;
 
-let box_set e = raise X_not_yet_implemented;;
+let box_set e = annotate_box e [] ;;
+
+let test e = annotate_lexical_addresses (Tag_Parser.tag_parse_expression (Reader.read_sexpr(e)))
 
 let run_semantics expr =
   box_set
