@@ -153,9 +153,9 @@ and map_annotate_tp_all_false list  = List.map (fun(element) -> annotate_tp elem
 
 (* --------------------------------------------- BOX ------------------------------------------------------------------ *)
 
- let incCounter  counter = 
+ let add_one  counter = 
  let getCounter = !counter in
-    let () = incr counter in 
+ let () = incr counter in 
     getCounter;; 
 
 let counter_write_init : int ref = ref 0;;
@@ -200,6 +200,9 @@ and update_arg element =   (* they dont have this func, the seder and names are 
     |Var'(VarParam(name,minor))->Var'(VarBound(name, 0, minor))
     |rest ->rest
 
+and is_not_empty v =   (* new func *)
+  (compare v "" )!=0
+
 and lambda_handler args vs body is_opt box_args =
     let argsWithVS = if(is_opt) then  args @ [vs] else args in  (* they dont have this *)
     let update_vars_in_box_args = List.map (fun(element)->(update_arg element))  box_args in  (* diffrenet order and a function for it *)
@@ -228,9 +231,6 @@ and lambda_simple_generator args parsed_body without_bad_vals_list =
      | _ -> let isExistSeq = Seq'(without_bad_vals_list @ [parsed_body]) in                       
             LambdaSimple' (args,isExistSeq) in
     new_body  
-
-and is_not_empty v =   (* new func *)
-  (compare v "" )!=0
 
 and is_not_equal first second =  (* new func *)
   (compare first second )!=0
@@ -261,20 +261,20 @@ and is_read_write_appaerance e var counter read_flag=  (* 1 func with flag *)
   |  Var'(VarBound(name, major,minor)) -> if read_flag then (if (is_equal name var)then [-1] else []) else []  (* called newfunc *)
   |  Var'(VarParam(name, minor)) -> if read_flag then (if (is_equal name var)then [-1] else []) else []        (* called newfunc *)
   (* --------------------------------------- Need Change ---------------------------------------------------*)
-  | Set' (name,value) -> if read_flag then (is_read_write_appaerance value var counter read_flag) 
-                         else (match name with
-                          | Var'(VarBound(name, major,minor))-> test_equality name var    (* change order and called a new func test equlity instead of if *)
-                          | Var'(VarParam(name, minor))-> test_equality name var
-                          | _-> [])
+  | Set' (Var'(VarBound(name, major,minor)),value) -> if read_flag then is_read_write_appaerance value var counter read_flag
+                                                                   else test_equality name var
+  | Set' (Var'(VarParam(name, minor)),value)-> if read_flag then is_read_write_appaerance value var counter read_flag
+                                                            else test_equality name var 
   | _->[]
 
 
 and handle_lambda args vs body var counter read_flag =
-let all_args = if(compare vs "" !=0) then  args @ [vs] else args in
-if List.mem var all_args then [] else
-let lambda_num = incCounter counter in
-let parsed_body = is_read_write_appaerance body var counter read_flag in
-if parsed_body = [] then [] else [lambda_num]
+let all_args = if(is_not_empty vs) then  args @ [vs] else args in
+if not (List.mem var all_args) then
+  let lambda_num = add_one counter in
+  let parsed_body = is_read_write_appaerance body var counter read_flag in
+  if List.length parsed_body > 0 then [lambda_num] else []
+else []
 
 
 and map_is_read_write list var counter read_flag= 
