@@ -53,6 +53,12 @@ let rec expr'_eq e1 e2 =
   | ApplicTP'(e1, args1), ApplicTP'(e2, args2) ->
 	 (expr'_eq e1 e2) &&
 	   (List.for_all2 expr'_eq args1 args2)
+     
+| Box'(var1), Box'(var2) -> expr'_eq (Var'(var1)) (Var'(var2))
+| BoxGet'(var1), BoxGet'(var2) -> expr'_eq (Var'(var1)) (Var'(var2))
+| BoxSet'(var1,expr1), BoxSet'(var2,expr2) -> (expr'_eq (Var'(var1)) (Var'(var2))) &&
+(expr'_eq (expr1) (expr2))
+
   | _ -> false;;
 	
                        
@@ -63,8 +69,6 @@ module type SEMANTICS = sig
   val annotate_lexical_addresses : expr -> expr'
   val annotate_tail_calls : expr' -> expr'
   val box_set : expr' -> expr'
-  val test :  string -> expr'
-  val testlex :  string -> expr'
 
 end;;
 
@@ -134,7 +138,7 @@ let rec annotate_tp e in_tp =  match e with
   | Or'(expr_list) -> if in_tp then Or'(map_annotate_tp  expr_list) else Or'(map_annotate_tp_all_false expr_list)
   | LambdaSimple' (args, body) ->  LambdaSimple' (args,(annotate_tp body true))
   | LambdaOpt' (args, vs, body) -> LambdaOpt' (args, vs, (annotate_tp body true))
-  | Applic' (function_name , args) -> if in_tp then ApplicTP'((annotate_tp function_name true), (map_annotate_tp_all_false args ))
+  | Applic' (function_name , args) -> if in_tp then ApplicTP'((annotate_tp function_name false), (map_annotate_tp_all_false args ))
             else Applic'((annotate_tp function_name false), map_annotate_tp_all_false args )
   | Var'(e) -> Var'(e)
   | Box'(e) -> Box'(e) 
@@ -268,16 +272,18 @@ and is_read_write_appaerance e var counter read_flag=
   | Seq' (expr_list) -> map_is_read_write expr_list var  counter read_flag
   | Def'(name,value) ->  (is_read_write_appaerance  value var counter read_flag)
   | Or' (expr_list) -> map_is_read_write expr_list var  counter read_flag
-  | Applic' (function_name , args) -> (map_is_read_write args var counter read_flag) 
-  | ApplicTP' (function_name , args) -> (map_is_read_write args var counter read_flag) 
+  | Applic' (function_name , args) -> (map_is_read_write args var counter read_flag) @ (is_read_write_appaerance function_name var counter read_flag)
+  | ApplicTP' (function_name , args) -> (map_is_read_write args var counter read_flag) @ (is_read_write_appaerance function_name var counter read_flag)
   | LambdaSimple' (args, body) -> handle_lambda args "" body var counter read_flag
   | LambdaOpt' (args,vs, body) -> handle_lambda args vs body var counter read_flag
-  |  Var'(VarBound(name, major,minor)) -> if read_flag then (if (is_equal name var)then [!counter] else []) else []  
-  |  Var'(VarParam(name, minor)) -> if read_flag then (if (is_equal name var)then [!counter] else []) else []       
+  |  Var'(VarBound(name, major,minor)) -> if read_flag then (if (is_equal name var)then [-1] else []) else []  
+  |  Var'(VarParam(name, minor)) -> if read_flag then (if (is_equal name var)then [-1] else []) else []       
   | Set' (Var'(VarBound(name, major,minor)),value) -> if read_flag then is_read_write_appaerance value var counter read_flag
                                                                    else test_equality name var counter @ (is_read_write_appaerance value var counter read_flag)
   | Set' (Var'(VarParam(name, minor)),value)-> if read_flag then is_read_write_appaerance value var counter read_flag
                                                             else test_equality name var counter @  (is_read_write_appaerance value var counter read_flag)
+  | Set' (Var'(VarFree(name)),value) -> if read_flag then is_read_write_appaerance value var counter read_flag
+                                                                   else test_equality name var counter @ (is_read_write_appaerance value var counter read_flag)
   | _->[]
 
 
@@ -300,7 +306,7 @@ and is_equal first second =
 and test_equality name var counter  =  
   let test_val = is_equal name var in
     match test_val with
-    |true -> [!counter]
+    |true -> [-1]
     |false -> []
 
 ;;
@@ -321,7 +327,5 @@ let run_semantics expr =
     (annotate_tail_calls
        (annotate_lexical_addresses expr));;
 
- let test e =  run_semantics (Tag_Parser.tag_parse_expression (Reader.read_sexpr(e))) ;;
- let testlex e =  annotate_lexical_addresses (Tag_Parser.tag_parse_expression (Reader.read_sexpr(e))) ;;
  
 end;; (* struct Semantics *)
