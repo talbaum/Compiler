@@ -1,7 +1,6 @@
 copy the line to utop after use semantic and open Semantic:
 
-
-test 3:
+test 3: their mistake x sholdnt needed to be boxed
 test "((lambda (x) 
         (if (x 1) 
             (x 2) 
@@ -11,7 +10,7 @@ test "((lambda (x)
                  (lambda (x) x))";;
 testlex "((lambda (x) (if (x 1)(x 2) ((lambda (x) (set! x 0))3))) (lambda (x) x))";;
 
-test 4:
+test 4:  - we dont box x
 test "(lambda (x) 
 (or ((lambda (y . z) 
         (lambda () 
@@ -23,7 +22,7 @@ test "(lambda (x)
 
 testlex "(lambda (x)(or ((lambda (y . z) (lambda () ((lambda () (+ x z))))) x 1) (lambda () (set! x w)) (w w)))";;
 
-test 6:
+test 6: - think that begin is a reserved var - tag parser line 417
 test "(lambda (x y z . w) begin z ((lambda () (begin (set! w w) ((y x))))))";;
 testlex "(lambda (x y z . w) begin z ((lambda () (begin (set! w w) ((y x))))))";;
 
@@ -31,26 +30,20 @@ test 8:
 test "(lambda (x y) (begin (x y) (lambda () (lambda () (lambda () (set! x ((lambda (z) (set! y x)) y)))))))";;
 testlex "(lambda (x y) (begin (x y) (lambda () (lambda () (lambda () (set! x ((lambda (z) (set! y x)) y)))))))";;
 
-test 9:
+test 9: - we didnt boxed x
 test "(lambda () (begin ((lambda () x)) ((lambda (x) (begin (set! x 1) (lambda () x))) 2) ((lambda x x) 3)))";;
 testlex "(lambda () (begin ((lambda () x)) ((lambda (x) (begin (set! x 1) (lambda () x))) 2) ((lambda x x) 3)))";;
 
-test 10:
-test "(lambda (x y z) (begin (lambda (y) (begin (set! x 5) (+ x y))) (+ x y z)))";;
-testlex "(lambda (x y z) (begin (lambda (y) (begin (set! x 5) (+ x y))) (+ x y z)))";;
 
-test 11:
+test 11: we didnt boxed x
 test "(lambda (x) (set! x ((lambda () x))))";;
 testlex "(lambda (x) (set! x ((lambda () x))))";;
 
-test 12:
+test 12: we didnt boxed y
 test "(y (lambda (y) (begin (set! a (lambda (b) (a b))) (set! t (lambda (x) (begin (set! y (lambda (j) (x j x))) h))) (y a))))";;
 testlex "(y (lambda (y) (begin (set! a (lambda (b) (a b))) (set! t (lambda (x) (begin (set! y (lambda (j) (x j x))) h))) (y a))))";;
 
-test 14:
-test "(lambda (x y) (begin (lambda () (set! x y)) (lambda () (set! y x))))";;
-testlex "(lambda (x y) (begin (lambda () (set! x y)) (lambda () (set! y x))))";;
 
-test 22:
+test 22: we didnt boxed x
 test "(lambda (x) (begin x (lambda (x) (begin (set! x 1) (lambda () x))) (lambda () (set! x x))))";;
 testlex "(lambda (x) (begin x (lambda (x) (begin (set! x 1) (lambda () x))) (lambda () (set! x x))))";;
