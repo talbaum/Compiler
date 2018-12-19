@@ -290,6 +290,8 @@ and needBegin body=
 (match body with
 |Nil ->tag_parse Nil
 |Pair (Pair (Symbol "begin", x), Nil)->seq_tag_parser x
+|Pair (Symbol "begin", x)->seq_tag_parser x
+
 |_->tag_parse (Pair(Symbol("begin"), body)))
 
 
@@ -425,5 +427,6 @@ let tag_parse_expressions sexpr = List.map tag_parse_expression sexpr;;
 
 
 end;; (* struct Tag_Parser *)
+
 
 
