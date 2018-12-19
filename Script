@@ -2,28 +2,3 @@ utop
 #use "semantic-analyser.ml";;
 open Semantics;;
 test "(define x 1)";;
-
-let rec help num list =
-    match list with
-    | [] -> false
-    | _ -> (
-      if num == (List.hd list)
-      then help num (List.tl list)
-      else true);;
-
- let list_equal read_list write_list =
-     let len_read = List.length read_list in
-     let len_write = List.length write_list in
-     if len_read = 0
-     then false
-     else if len_write = 0
-     then false
-     else if len_read != len_write
-     then true
-     else List.mem true (List.map (fun (a) -> help a write_list ) read_list )
- ;;
-+ let need_box e body =
-+   let read_list = read_occur e body [] (ref(0)) in
-+   let write_list = write_occur e body [] (ref(0)) in
-+   let ans = list_equal read_list write_list in
-+   ans;;
