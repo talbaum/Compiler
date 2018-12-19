@@ -12,21 +12,20 @@ testlex "((lambda (x) (if (x 1)(x 2) ((lambda (x) (set! x 0))3))) (lambda (x) x)
 
 test 4:  - we dont box x
 test "(lambda (x) 
-(or ((lambda (y . z) 
+    (or (
+        (lambda (y . z) 
         (lambda () 
         ((lambda () 
             (+ x z)))))
-             x 1) 
-             (lambda () (set! x w)) 
-             (w w)))";;
+        x
+        1) 
+    (lambda () (set! x w)) 
+    (w w)))";;
 
 testlex "(lambda (x)(or ((lambda (y . z) (lambda () ((lambda () (+ x z))))) x 1) (lambda () (set! x w)) (w w)))";;
 
-test 6: - think that begin is a reserved var - tag parser line 417
-test "(lambda (x y z . w) begin z ((lambda () (begin (set! w w) ((y x))))))";;
-testlex "(lambda (x y z . w) begin z ((lambda () (begin (set! w w) ((y x))))))";;
 
-test 8:
+test 8: didnt boxed x and y
 test "(lambda (x y) (begin (x y) (lambda () (lambda () (lambda () (set! x ((lambda (z) (set! y x)) y)))))))";;
 testlex "(lambda (x y) (begin (x y) (lambda () (lambda () (lambda () (set! x ((lambda (z) (set! y x)) y)))))))";;
 
@@ -47,3 +46,13 @@ testlex "(y (lambda (y) (begin (set! a (lambda (b) (a b))) (set! t (lambda (x) (
 test 22: we didnt boxed x
 test "(lambda (x) (begin x (lambda (x) (begin (set! x 1) (lambda () x))) (lambda () (set! x x))))";;
 testlex "(lambda (x) (begin x (lambda (x) (begin (set! x 1) (lambda () x))) (lambda () (set! x x))))";;
+
+test 23 - we shold box but didnt
+test "(lambda (x) 
+    (begin
+         x 
+        (lambda (x) 
+        (begin 
+            (set! y x) 
+            (lambda () x))) 
+        (lambda () (set! x x))))"
