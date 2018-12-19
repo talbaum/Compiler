@@ -64,6 +64,8 @@ module type SEMANTICS = sig
   val annotate_tail_calls : expr' -> expr'
   val box_set : expr' -> expr'
   val test :  string -> expr'
+  val testlex :  string -> expr'
+
 end;;
 
 module Semantics : SEMANTICS = struct
@@ -80,7 +82,6 @@ let rec annotate_lex e paramsList boundList =  match e with
   | Applic (function_name , args) -> Applic'((annotate_lex function_name paramsList boundList), (map_annotate args paramsList boundList))
   | Var(e) -> get_type_of_var e paramsList boundList
 
-(*------------------------------------------ need to implement new_boundlist*)
  and lambdaSimpleHandler  args body boundList  = 
 let incLevel_boundList = (higher_lambda_level boundList) in
 let new_boundlist = expand_bound_list incLevel_boundList args in 
@@ -88,10 +89,10 @@ let new_body = (annotate_lex body args new_boundlist) in
 LambdaSimple'(args, new_body)  
 
 and lambdaOptHandler  args vs body boundList  = 
+let newArgs = args @ [vs] in
 let incLevel_boundList = (higher_lambda_level boundList) in
-let new_vs_boundlist = expand_bound_list incLevel_boundList [vs] in 
-let new_boundlist = expand_bound_list new_vs_boundlist args in 
-let new_body = (annotate_lex body args new_boundlist) in
+let new_boundlist = expand_bound_list incLevel_boundList newArgs in 
+let new_body = (annotate_lex body newArgs new_boundlist) in
 LambdaOpt'(args,vs, new_body)  
 
 and expand_bound_list boundList params_to_add =
@@ -103,12 +104,10 @@ List.map (fun(param)-> [(List.hd param) ; (string_of_int ((int_of_string (List.n
 
 and  indexInParametersList name params i = 
 if List.length params = 0 then -1
-else if (List.hd params) = name then i 
+else if (compare (List.hd params) name) = 0 then i 
     else indexInParametersList name (List.tl params) (i+1)
     
 and map_annotate list paramsList boundList  = List.map (fun(element) -> annotate_lex element paramsList boundList) list  
-
-
 
 and  get_type_of_var e paramsList boundList= 
 if (List.mem e paramsList) then
@@ -125,11 +124,10 @@ Var'(VarBound(e,majorIndex,minorIndex))
 else Var'(VarFree(e));;
 
 
-
 let rec annotate_tp e in_tp =  match e with
   | Const'(e) -> Const'(e)
   | If' (testExp , thenExp , elseExp) -> if in_tp then If'(annotate_tp testExp false,annotate_tp thenExp true,annotate_tp elseExp true) else 
-    If'(annotate_tp testExp false,annotate_tp thenExp false,annotate_tp elseExp false)
+            If'(annotate_tp testExp false,annotate_tp thenExp false,annotate_tp elseExp false)
   | Seq'(expr_list) ->  if in_tp then Seq'(map_annotate_tp expr_list)else Seq'(map_annotate_tp_all_false expr_list)
   | Set' (name , value) -> Set'(annotate_tp name false , annotate_tp value false)
   | Def' (name , value) -> Def'(annotate_tp name false , annotate_tp value false )
@@ -142,7 +140,6 @@ let rec annotate_tp e in_tp =  match e with
   | Box'(e) -> Box'(e) 
   | BoxGet'(e) -> BoxGet'(e)
   | BoxSet'(e,expr) ->  BoxSet'(e,annotate_tp expr false ) 
-  (* | ApplicTP'(e,r) ->raise X_not_yet_implemented   *)
   | _ ->raise X_syntax_error  
 
 and map_annotate_tp list    = 
@@ -154,221 +151,164 @@ let annotatedLast = annotate_tp last true in
 let annotatedAllButLast = List.map (fun(element) -> annotate_tp element false) allButLast  in
 annotatedAllButLast @ [annotatedLast]
 
-
 and map_annotate_tp_all_false list  = List.map (fun(element) -> annotate_tp element false) list  ;;
 
 
-let counter_read_init : int ref = ref 0 ;;
-(* let inc_read1 : int = !counter_read_init in
-    (counter_read_init := !counter_read_init + 1); 
-    !counter_read_init;; *)
+ let add_one  counter = 
+ let getCounter = !counter in
+ let () = incr counter in 
+    getCounter;; 
 
 let counter_write_init : int ref = ref 0;;
-(* let inc_write1: int = !counter_write_init in
-    (counter_write_init := !counter_write_init + 1);
-    !counter_write_init;; *)
-   
-
+let counter_read_init : int ref = ref 0 ;;
+ 
 let rec annotate_box e box_args=  match e with
 | Const'(e) -> Const'(e)
 | If' (testExp , thenExp , elseExp) -> If'(annotate_box testExp box_args,annotate_box thenExp box_args,annotate_box elseExp box_args)
 | Seq'(expr_list) ->  Seq'(map_annotate_box expr_list box_args)
-| Set' (Var'(name), value) -> if List.mem (Var'(name)) box_args then BoxSet'(name,( annotate_box value box_args)) else e 
 | Def' (name , value) -> Def'(annotate_box name box_args , annotate_box value box_args)
 | Or'(expr_list) -> Or'(map_annotate_box  expr_list box_args) 
-| LambdaSimple' (args, body) -> let filtered_box_Vars = List.map (fun(element) -> (if (should_box body element)  then element else "")) args in
-                                (* let new_box_args =box_args @ filtered_box_Vars in *)
-                                let first_exprs = (List.map (fun(v) ->
-                                 if (compare v "" )!=0 then 
-                                      let minor = indexInParametersList v args 0 in   (*maybe should be filtered_box_vars *)
-                                      Set'(Var'(VarParam(v, minor)), Box'(VarParam(v, minor)))
-                                    else Const'(Void) ) filtered_box_Vars) in
-                                let first_exprs_justVars = (List.map (fun(v) ->
-                                 if (compare v "" )!=0 then 
-                                      let minor = indexInParametersList v args 0 in   (*maybe should be filtered_box_vars *)
-                                      Var'(VarParam(v, minor))
-                                    else Const'(Void) ) filtered_box_Vars) in
-                                let filtered_justVars = List.filter (fun(element)-> (compare element (Const'(Void))!=0)) first_exprs_justVars in
-                                let new_box_args = List.map (fun(element)->(match element with
-                                                                            |Var'(VarParam(name,minor))->Var'(VarBound(name, 0, minor))
-                                                                            |Var'(VarBound(name,major,minor))->Var'(VarBound(name, major+1,minor))
-                                                                            |name ->name))  box_args in
-                                let new_box_args1 = filtered_justVars @ new_box_args in
-
-                                                                        
-                                let parsed_body = annotate_box body new_box_args1 in
-                                let without_void_list = List.filter (fun(x) -> (compare x (Const'(Void)))!=0 ) first_exprs in
-                                let new_body = if(List.length without_void_list =0) then (*Seq'(without_void_list @ [parsed_body]) in*)
-                                LambdaSimple' (args,parsed_body) else  
-                                let isExistSeq = (match parsed_body with
-                                |Seq'(exprList)->Seq'(without_void_list @ exprList)
-                                |_->Seq'(without_void_list @ [parsed_body])) in
-                                LambdaSimple' (args,isExistSeq) in
-                                new_body  
-| LambdaOpt' (args, vs, body) -> let argsWithVs = (args @ [vs]) in 
-                               let filtered_box_Vars = List.map (fun(element) -> (if (should_box body element)  then element else "")) argsWithVs in
-                                 (* let new_box_args =box_args @ filtered_box_Vars in *)
-                                let first_exprs = (List.map (fun(v) ->
-                                 if (compare v "" )!=0 then 
-                                      let minor = indexInParametersList v argsWithVs 0 in   (*maybe should be filtered_box_vars *)
-                                      Set'(Var'(VarParam(v, minor)), Box'(VarParam(v, minor)))
-                                    else Const'(Void) ) filtered_box_Vars) in
-                                let first_exprs_justVars = (List.map (fun(v) ->
-                                 if (compare v "" )!=0 then 
-                                      let minor = indexInParametersList v argsWithVs 0 in   (*maybe should be filtered_box_vars *)
-                                      Var'(VarParam(v, minor))
-                                    else Const'(Void) ) filtered_box_Vars) in
-                                let filtered_justVars = List.filter (fun(element)-> (compare element (Const'(Void))!=0)) first_exprs_justVars in
-                                let new_box_args = List.map (fun(element)->(match element with
-                                                                            |Var'(VarParam(name,minor))->Var'(VarBound(name, 0, minor))
-                                                                            |Var'(VarBound(name,major,minor))->Var'(VarBound(name, major+1,minor))
-                                                                            |name ->name))  box_args in
-                                let new_box_args1 = filtered_justVars @ new_box_args in
-
-                                                                        
-                                let parsed_body = annotate_box body new_box_args1 in
-                                let without_void_list = List.filter (fun(x) -> (compare x (Const'(Void)))!=0 ) first_exprs in
-                                let new_body = if(List.length without_void_list =0) then (*Seq'(without_void_list @ [parsed_body]) in*)
-                                LambdaOpt' (args,vs,parsed_body) else  
-                                let isExistSeq = (match parsed_body with
-                                |Seq'(exprList)->Seq'(without_void_list @ exprList)
-                                |_->Seq'(without_void_list @ [parsed_body])) in
-                                LambdaOpt' (args,vs,isExistSeq) in
-                                new_body  
-| Applic' (function_name , args) -> Applic'((annotate_box function_name box_args), map_annotate_box args box_args)
-| ApplicTP'(function_name,args) -> ApplicTP'((annotate_box function_name box_args),map_annotate_box args box_args)
-(* | Var'(VarParam(name, minor))  ->if List.mem name box_args then BoxGet'(VarParam(name, minor)) else  Var'(VarParam(name, minor))
-| Var'(VarBound(name,major, minor)) ->  if List.mem name box_args then BoxGet'(VarBound(name, major,minor)) else  Var'(VarBound(name,major, minor))
-| Var'(VarFree(e))  -> Var'(VarFree(e)) *)
-|Var'(name)-> if List.mem e box_args then BoxGet'(name) else e
-(* | Box'(e) -> Box'(e)  *)
+| Box'(e) -> Box'(e)  
 | BoxGet'(vari) -> e
 | BoxSet'(vari,expr) -> e
+| Set' (Var'(name) as name_var, value) -> 
+        if is_in_list name_var box_args then BoxSet'(name,annotate_box value box_args) 
+        else Set'(annotate_box name_var box_args,annotate_box value box_args) 
+| LambdaSimple' (args, body) -> lambda_handler args "" body false box_args 
+| LambdaOpt' (args, vs, body) -> lambda_handler args vs body true box_args 
+| Applic' (function_name , args) -> let expr = annotate_box function_name box_args in 
+                                     Applic'(expr, map_annotate_box args box_args)
+| ApplicTP'(function_name,args) -> let expr = annotate_box function_name box_args in
+                                    ApplicTP'(expr, map_annotate_box args box_args)
+| Var'(VarBound(name,major,minor) as var_expr)-> if is_in_list e box_args then BoxGet'(var_expr) else Var'(VarBound(name,major,minor))
+| Var'(VarParam(name,minor) as var_expr)-> if is_in_list e box_args then BoxGet'(var_expr) else Var'(VarParam(name,minor))
+| Var'(VarFree(name))->  Var'(VarFree(name))
 | _ ->raise X_syntax_error
-
-
-
-
 
 and map_annotate_box list box_args  = List.map (fun(element) -> annotate_box element box_args ) list  
  
+and is_in_list search_me list = 
+  List.mem search_me list 
 
 
+and update_arg element =   
+    match element with
+    |Var'(VarBound(name,major,minor))->Var'(VarBound(name, major+1,minor))
+    |Var'(VarParam(name,minor))->Var'(VarBound(name, 0, minor))
+    |rest ->rest
 
+and is_not_empty v =   
+  (compare v "" )!=0
 
+and set_first_exprs v args vs is_param bad_val =  
+    if is_not_empty v then
+    let minor = indexInParametersList v args 0 in 
+    if minor = -1 then if (compare v vs) = 0 then  let vs_index = List.length args in
+                                                          if is_param then Var'(VarParam(v, vs_index))
+                                                           else Set'(Var'(VarParam(v, vs_index)), Box'(VarParam(v, vs_index)))
+                  else bad_val
+    else
+      if is_param then Var'(VarParam(v, minor))
+                  else Set'(Var'(VarParam(v, minor)), Box'(VarParam(v, minor)))
+    else bad_val 
 
+and lambda_handler args vs body is_opt box_args =
+    let argsWithVS = if(is_opt) then  args @ [vs] else args in  
+    let update_vars_in_box_args = List.map (fun(element)->(update_arg element))  box_args in  
+    let filtered_box_Vars = List.filter (fun(element) -> (should_box body element)) argsWithVS in  
+    let bad_val = Const'(Sexpr(String(""))) in 
+    let parmaters = (List.map (fun(v) -> set_first_exprs v args vs true bad_val ) filtered_box_Vars) in 
+    let first_exprs = (List.map (fun(v) -> set_first_exprs v args vs false bad_val) filtered_box_Vars) in 
+    let without_bad_vals_list = List.filter (fun(x) -> (is_not_equal x bad_val)) first_exprs in  
+    let filtered_parmaters = List.filter (fun(element)-> (is_not_equal element bad_val)) parmaters in 
+    let new_box_args = filtered_parmaters @ update_vars_in_box_args in 
+    let parsed_body = annotate_box body new_box_args in
 
-and inc_read : int =
-     incr counter_read_init; 
-    !counter_read_init
+    if (is_opt) then (lambda_opt_generator args vs parsed_body without_bad_vals_list) 
+    else (lambda_simple_generator args parsed_body without_bad_vals_list)
 
-and inc_write : int =
-    incr counter_write_init ; 
-    !counter_write_init
- 
-and print_list = function 
-[] -> ()
-| e::l -> print_int e ; print_string " " ; print_list l 
+and lambda_opt_generator args vs parsed_body without_bad_vals_list =   
+    let new_body = match without_bad_vals_list with 
+     | [] -> LambdaOpt' (args,vs,parsed_body)   
+     | _ -> let isExistSeq = Seq'(without_bad_vals_list @ [parsed_body]) in
+            LambdaOpt' (args,vs,isExistSeq) in
+    new_body  
 
+and lambda_simple_generator args parsed_body without_bad_vals_list = 
+    let new_body = match without_bad_vals_list with 
+     | [] -> LambdaSimple' (args,parsed_body)   
+     | _ -> let isExistSeq = Seq'(without_bad_vals_list @ [parsed_body]) in                       
+            LambdaSimple' (args,isExistSeq) in
+    new_body  
 
-
+and is_not_equal first second =  
+  (compare first second )!=0
 
 
 and should_box e var = 
-let read_lambdas = (is_read_appaerance e var  (ref (0))) in
-let write_lambdas = (is_write_appearence e var (ref (0))) in
- if List.length read_lambdas > 0 && List.length write_lambdas > 0 then
-let anslist = List.filter (fun(x)-> (not (List.mem x write_lambdas))) read_lambdas  in
-let anslist2 = List.filter (fun(x)-> (not (List.mem x read_lambdas)))  write_lambdas in
-if List.length anslist >0  || List.length anslist2 >0 then true else false 
-(* let anslist2 = List.filter (fun(x)-> (not (List.mem x read_lambdas)))  write_lambdas in
-if List.length anslist2 >0 then true else false *)
-(* let anslist = (List.map(fun(elem) -> (( if (List.mem elem read_lambdas) = false then true else false ))) write_lambdas) in
- if (List.mem true anslist) then true else true (* else *)
-let anslist2 = (List.map(fun(elem) -> (( if (List.mem elem write_lambdas) = false then true else false))) read_lambdas) in
-if (List.mem true anslist2) then true else false *)
+let read_lambdas = (is_read_write_appaerance e var  counter_read_init true) in
+let write_lambdas = (is_read_write_appaerance e var counter_write_init false) in
+if List.length read_lambdas > 0 && List.length write_lambdas > 0 then
+let ans = is_same_lambda read_lambdas write_lambdas in
+if List.mem true ans then true else false
 else false 
 
-(* let list_read_write = (make_cartesian_list read_lambdas write_lambdas) in 
-let anslist=(List.map (fun(element)-> if (List.hd element) != (List.hd(List.tl element)) then true else false ) list_read_write) in
-List.mem true anslist*)
+and is_same_lambda readlist writelist = 
+   List.flatten (List.map (fun (e) -> List.map (fun (e2) -> if (compare e e2) != 0 then true else false) writelist) readlist)
 
-and is_read_appaerance e var counter = match e with
+
+
+and is_read_write_appaerance e var counter read_flag= 
+ match e with
   | Const'(e) -> []
-
-  (* (match var with
-       |Var'(VarBound((v, major,minor))) ->  if name = v then [-1] else []
-       |Var'(VarFree(v)) ->  if name = v then [-1] else []
-       | _ -> []) *)
-   | Var'(v) -> (match v with
-       | VarParam(name, minor) ->  (if (compare name var =0 )then [-1] else [])
-       | VarBound(name, major,minor)-> (if (compare name var =0 )then [-1] else [])
-       | _ -> [])
   | Box' (e)-> []
   | BoxGet' (e) ->[]
   | BoxSet'(e,p) -> []
-  | If' (test, _then, _else) -> (is_read_appaerance test var counter) @ (is_read_appaerance _then var counter) @ (is_read_appaerance _else var counter)
-  | Seq' (expr_list) -> map_is_read expr_list var  counter
-  | Set' (name,value) ->  (is_read_appaerance  value var counter)
-  | Def'(name,value) ->  (is_read_appaerance  value var counter)
-  | Or' (expr_list) -> map_is_read expr_list var  counter
-  | LambdaSimple' (args, body) -> let lambda_num = !counter in
-                                  let () = incr counter in
-                                  if List.mem var args then [] else
-                                  let parsed_body = is_read_appaerance body var counter in
-                                   if parsed_body = [] then [] else [lambda_num]
-  | LambdaOpt' (args,vs, body) -> let lambda_num = !counter in
-                                  let () = incr counter in
-                                  if List.mem var (args @ [vs]) then [] else
-                                  let parsed_body = is_read_appaerance body var counter in
-                                   if parsed_body = [] then [] else [lambda_num]
-  | Applic' (function_name , args) -> (map_is_read args var counter) 
-  | ApplicTP' (function_name , args) -> (map_is_read args var counter) 
+  | If' (test, _then, _else) -> (is_read_write_appaerance test var counter read_flag) @ (is_read_write_appaerance _then var counter read_flag) @ (is_read_write_appaerance _else var counter read_flag)
+  | Seq' (expr_list) -> map_is_read_write expr_list var  counter read_flag
+  | Def'(name,value) ->  (is_read_write_appaerance  value var counter read_flag)
+  | Or' (expr_list) -> map_is_read_write expr_list var  counter read_flag
+  | Applic' (function_name , args) -> (map_is_read_write args var counter read_flag) 
+  | ApplicTP' (function_name , args) -> (map_is_read_write args var counter read_flag) 
+  | LambdaSimple' (args, body) -> handle_lambda args "" body var counter read_flag
+  | LambdaOpt' (args,vs, body) -> handle_lambda args vs body var counter read_flag
+  |  Var'(VarBound(name, major,minor)) -> if read_flag then (if (is_equal name var)then [!counter] else []) else []  
+  |  Var'(VarParam(name, minor)) -> if read_flag then (if (is_equal name var)then [!counter] else []) else []       
+  | Set' (Var'(VarBound(name, major,minor)),value) -> if read_flag then is_read_write_appaerance value var counter read_flag
+                                                                   else test_equality name var counter @ (is_read_write_appaerance value var counter read_flag)
+  | Set' (Var'(VarParam(name, minor)),value)-> if read_flag then is_read_write_appaerance value var counter read_flag
+                                                            else test_equality name var counter @  (is_read_write_appaerance value var counter read_flag)
+  | _->[]
 
-and map_is_read list var counter = 
-let biglist = List.map (fun(element) -> is_read_appaerance  element var counter ) list  in
+
+and handle_lambda args vs body var counter read_flag =
+let all_args = if(is_not_empty vs) then  args @ [vs] else args in
+if not (List.mem var all_args) then
+  let lambda_num = add_one counter in
+  let parsed_body = is_read_write_appaerance body var counter read_flag in
+  if List.length parsed_body > 0 then [lambda_num] else []
+else []
+
+
+and map_is_read_write list var counter read_flag= 
+let biglist = List.map (fun(element) -> is_read_write_appaerance element var counter read_flag) list  in
 List.flatten biglist
 
-and is_write_appearence e var counter= match e with
-  | Const'(e) -> []
-  | Var' (e) -> []
-  | Box' (e)-> []
-  | BoxGet' (e) ->[]
-  | BoxSet'(e,p) -> []
-  | If' (test, _then, _else) -> (is_write_appearence test var counter) @ (is_write_appearence _then var counter) @ (is_write_appearence _else var counter)
-  | Seq' (expr_list) -> map_is_write expr_list var counter
-  |  Set' (name,value) -> (match name with
-       | Var'(VarParam(name, minor)) ->  (if (compare name var =0 )then [-1] else [])
-       | Var'(VarBound(name, major,minor))-> (if (compare name var =0 )then [-1] else [])
-       | _ -> []) 
-  (* (match var with
-       |Var'(VarBound((v, major,minor))) ->  if name = v then [-1] else []
-       |Var'(VarFree(v)) ->  if name = v then [-1] else []
-       | _ -> []) *)
-  | Def'(name,value) -> (is_write_appearence value var counter)
-  | Or' (expr_list) -> map_is_write expr_list var counter
-  | LambdaSimple' (args, body) -> let lambda_num = !counter in
-                                  let () = incr counter in
-                                  if List.mem var args then [] else
-                                  let parsed_body = is_write_appearence body var counter in
-                                  if parsed_body = [] then [] else [lambda_num]
-  | LambdaOpt' (args,vs, body) -> let lambda_num = !counter in
-                                  let () = incr counter in
-                                  if List.mem var (args @ [vs]) then [] else
-                                  let parsed_body = is_write_appearence body var counter in
-                                  if parsed_body = [] then [] else [lambda_num]
-  | Applic' (function_name , args) ->  (map_is_write args var counter) 
-  | ApplicTP' (function_name , args) -> (map_is_write args var counter) 
+and is_equal first second = 
+  compare first second =0
 
-  and map_is_write list var counter = 
-   let biglist = List.map (fun(element) -> is_write_appearence element var counter ) list in
-  List.flatten biglist
+and test_equality name var counter  =  
+  let test_val = is_equal name var in
+    match test_val with
+    |true -> [!counter]
+    |false -> []
 
-  (* and make_cartesian_list (int list : l1) (int list: l2) : ((int * int) list))= 
-    match l1, l2 with
-    | [], _ | _, [] -> []
-    | h1::t1, h2::t2 -> (h1,h2)::(make_cartesian_list [h1] t2)@(make_cartesian_list t1 l2);;  *)
-  
+;;
+
+(* and print_list = function 
+[] -> ()
+| e::l -> print_int e ; print_string " " ; print_list l  *)
+
 let annotate_lexical_addresses e = annotate_lex e [] [] ;;
 
 let annotate_tail_calls e =  annotate_tp e false;;
@@ -382,5 +322,6 @@ let run_semantics expr =
        (annotate_lexical_addresses expr));;
 
  let test e =  run_semantics (Tag_Parser.tag_parse_expression (Reader.read_sexpr(e))) ;;
+ let testlex e =  annotate_lexical_addresses (Tag_Parser.tag_parse_expression (Reader.read_sexpr(e))) ;;
  
 end;; (* struct Semantics *)
