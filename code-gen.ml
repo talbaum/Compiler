@@ -7,6 +7,9 @@ module type CODE_GEN = sig
 end;;
 
 module Code_Gen : CODE_GEN = struct
+
+(*---------------------------- Constant var table -----------------------------*)
+
   let list_to_string s =
     String.concat "" (List.map (fun str ->  str) s);;
 
@@ -51,6 +54,8 @@ match list with
 
 let is_in_list elem list = if List.mem elem list then list else elem :: list
 let remove_duplicate list = List.fold_right is_in_list list []
+
+
 let isEqual_constant e1 e2=
   match e1, e2 with
   |  Void,  Void -> true
@@ -130,6 +135,45 @@ let rev_list = List.rev parsed_table in
 List.hd rev_list;;
 
 
+(*---------------------------- Free var table -----------------------------*)
+
+
+ let rec collect_all_fvars asts fvar_list = match asts with
+  (* | Const'(e) -> if const is relavnt *)
+  | If' (testExp , thenExp , elseExp) -> collect_all_fvars testExp fvar_list @ collect_all_fvars thenExp fvar_list @ collect_all_fvars elseExp fvar_list 
+  | Seq'(expr_list) ->  map_collect_fvars expr_list fvar_list 
+  | Set'(name , value) -> collect_all_fvars name fvar_list @ collect_all_fvars value fvar_list 
+  | Def' (name , value) -> collect_all_fvars name fvar_list @ collect_all_fvars value fvar_list 
+  | Or'(expr_list) -> map_collect_fvars  expr_list fvar_list 
+  | LambdaSimple' (args, body) ->  collect_all_fvars body fvar_list (*check if should do for args too *)
+  | LambdaOpt' (args, vs, body) -> collect_all_fvars body fvar_list
+  | Applic' (function_name , args) -> collect_all_fvars function_name fvar_list @ map_collect_fvars args fvar_list
+  | ApplicTP' (function_name , args) -> collect_all_fvars function_name fvar_list @ map_collect_fvars args fvar_list
+  | Box' (e)-> type_of_var e fvar_list
+  | BoxGet' (e) -> type_of_var e fvar_list
+  | BoxSet'(e,p) ->  type_of_var e fvar_list @ collect_all_fvars p fvar_list
+  | Var'(e) -> type_of_var e fvar_list
+  |_ -> []
+  
+  and map_collect_fvars list fvar_list  =
+   let after_map_list = List.map (fun(element) -> collect_all_fvars element fvar_list) list in
+  List.flatten after_map_list
+
+  and type_of_var e fvar_list= match e with
+  | VarBound(name, major,minor) -> [] 
+  | VarParam(name, minor) -> fvar_list @ [name] 
+  | VarFree(name) -> fvar_list @ [name] 
+;;
+
+let create_label fvar = raise X_not_yet_implemented;;
+
+let rec create_fvar_table fvar_set index = match fvar_set with
+| [] -> []
+| [x] -> [(x,index)]
+| hd::tl -> [(hd,index)] @ (create_fvar_table tl (index + 1)) ;;
+
+(* List.map(fun(fvar)-> (fvar, (create_label fvar)))  fvar_set *)
+
   let make_consts_tbl asts = 
   let constants_list = collect_all_sexprs asts (Sexpr(Nil)) in
   let constants_set  = remove_duplicate constants_list in
@@ -137,7 +181,11 @@ List.hd rev_list;;
   let no_dups_list = remove_duplicate expanded_list in
   create_const_table (List.flatten no_dups_list) [];; 
   
-  let make_fvars_tbl asts = raise X_not_yet_implemented;;
+  let make_fvars_tbl asts = 
+  let fvar_list = collect_all_fvars asts [] in
+  let fvar_set = remove_duplicate fvar_list in 
+  create_fvar_table fvar_set 0
+  ;;
   let generate consts fvars e = raise X_not_yet_implemented;;
 end;;
 
