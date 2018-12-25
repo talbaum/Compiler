@@ -81,23 +81,19 @@ let find_element e constant_table =
  ;;
 
 
-let rec build_topolig_list constant_set = 
-(* List.fold_right handle_single_sexpr sexpr_set *)
- handle_single_constant constant_set
-
-and handle_single_constant constants = match constants with
+let rec build_topolig_list constant_set =  match constant_set with
 | [] -> []
 | (constant :: others) ->
    (match constant with
-  | Sexpr(Symbol(str)) as sym -> [Sexpr(String(str))] @ [sym] @ handle_single_constant others
-  | Sexpr(Pair (hd,tail)) as p -> [Sexpr(hd)]  @ handle_single_constant [Sexpr(hd)] @ handle_single_constant [Sexpr (tail)]  @ [Sexpr(tail)] @ [p] @ handle_single_constant others(* verify order *)
-  | Sexpr(Vector(sexpr_list)) as v -> handle_vector(sexpr_list) @ [v] @ handle_single_constant others
-  | Void -> handle_single_constant others
-  | Sexpr(rest) as const_rest -> [const_rest] @ handle_single_constant others )
+  | Sexpr(Symbol(str)) as sym -> [Sexpr(String(str))] @ [sym] @ build_topolig_list others
+  | Sexpr(Pair (hd,tail)) as p -> [Sexpr(hd)]  @ build_topolig_list [Sexpr(hd)] @ build_topolig_list [Sexpr (tail)]  @ [Sexpr(tail)] @ [p] @ build_topolig_list others(* verify order *)
+  | Sexpr(Vector(sexpr_list)) as v -> handle_vector(sexpr_list) @ [v] @ build_topolig_list others
+  | Void -> build_topolig_list others
+  | Sexpr(rest) as const_rest -> [const_rest] @ build_topolig_list others )
 
 and handle_vector sexpr_list = 
 (* List.fold_right handle_single_vector_elem sexpr_list *)
-let tmp = List.map (fun(e) -> handle_single_constant [Sexpr(e)] )sexpr_list in
+let tmp = List.map (fun(e) -> build_topolig_list [Sexpr(e)] )sexpr_list in
 List.flatten tmp;;
 
 let get_size table =  let elem = (List.rev table) in
@@ -151,16 +147,7 @@ let rec create_const_table list constant_table= match list with
   new_row @ (create_const_table others (constant_table @ new_row));;
 
 
-(* let parsed_table =  List.map (fun(elem)-> 
-  let size = get_size elem in
-  let offset = get_offset constant_table in
-  let represent = get_represent elem constant_table in
-  constant_table  @ [(elem , (size + offset) , represent)]) list in 
-parsed_table;; *)
-
-
 (*---------------------------- Free var table -----------------------------*)
-
 
  let rec collect_all_fvars asts fvar_list =   match asts with
   | [] -> []
@@ -341,23 +328,19 @@ let find_element e constant_table =
  ;;
 
 
-let rec build_topolig_list constant_set = 
-(* List.fold_right handle_single_sexpr sexpr_set *)
- handle_single_constant constant_set
-
-and handle_single_constant constants = match constants with
+let rec build_topolig_list constant_set =  match constant_set with
 | [] -> []
 | (constant :: others) ->
    (match constant with
-  | Sexpr(Symbol(str)) as sym -> [Sexpr(String(str))] @ [sym] @ handle_single_constant others
-  | Sexpr(Pair (hd,tail)) as p -> [Sexpr(hd)]  @ handle_single_constant [Sexpr(hd)] @ handle_single_constant [Sexpr (tail)]  @ [Sexpr(tail)] @ [p] @ handle_single_constant others(* verify order *)
-  | Sexpr(Vector(sexpr_list)) as v -> handle_vector(sexpr_list) @ [v] @ handle_single_constant others
-  | Void -> handle_single_constant others
-  | Sexpr(rest) as const_rest -> [const_rest] @ handle_single_constant others )
+  | Sexpr(Symbol(str)) as sym -> [Sexpr(String(str))] @ [sym] @ build_topolig_list others
+  | Sexpr(Pair (hd,tail)) as p -> [Sexpr(hd)]  @ build_topolig_list [Sexpr(hd)] @ build_topolig_list [Sexpr (tail)]  @ [Sexpr(tail)] @ [p] @ build_topolig_list others(* verify order *)
+  | Sexpr(Vector(sexpr_list)) as v -> handle_vector(sexpr_list) @ [v] @ build_topolig_list others
+  | Void -> build_topolig_list others
+  | Sexpr(rest) as const_rest -> [const_rest] @ build_topolig_list others )
 
 and handle_vector sexpr_list = 
 (* List.fold_right handle_single_vector_elem sexpr_list *)
-let tmp = List.map (fun(e) -> handle_single_constant [Sexpr(e)] )sexpr_list in
+let tmp = List.map (fun(e) -> build_topolig_list [Sexpr(e)] )sexpr_list in
 List.flatten tmp;;
 
 let get_size table =  let elem = (List.rev table) in
@@ -410,17 +393,7 @@ let rec create_const_table list constant_table= match list with
 | (elem::others) -> let new_row = build_single_constant_row elem constant_table in 
   new_row @ (create_const_table others (constant_table @ new_row));;
 
-
-(* let parsed_table =  List.map (fun(elem)-> 
-  let size = get_size elem in
-  let offset = get_offset constant_table in
-  let represent = get_represent elem constant_table in
-  constant_table  @ [(elem , (size + offset) , represent)]) list in 
-parsed_table;; *)
-
-
 (*---------------------------- Free var table -----------------------------*)
-
 
  let rec collect_all_fvars asts fvar_list =   match asts with
   | [] -> []
