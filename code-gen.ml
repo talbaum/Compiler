@@ -39,7 +39,7 @@ module Code_Gen : CODE_GEN = struct
   and type_of_var e sexpr_list= match e with
   | [VarBound(name, major,minor)] -> sexpr_list @ [Sexpr(String(name))] 
   | [VarParam(name, minor)] -> sexpr_list @ [Sexpr(String(name))] 
-  | [VarFree(name)] -> sexpr_list @ [Sexpr(String(name))] 
+  | [VarFree(name)] -> []
   | _ -> []
 ;;
 
@@ -299,7 +299,7 @@ end;;
   and type_of_var e sexpr_list= match e with
   | [VarBound(name, major,minor)] -> sexpr_list @ [Sexpr(String(name))] 
   | [VarParam(name, minor)] -> sexpr_list @ [Sexpr(String(name))] 
-  | [VarFree(name)] -> sexpr_list @ [Sexpr(String(name))] 
+  | [VarFree(name)] ->[]
   | _ -> []
 ;;
 
@@ -479,7 +479,8 @@ init_basics @ list;;
     
  let test = List.map Semantics.run_semantics
                          (Tag_Parser.tag_parse_expressions
-                            (Reader.read_sexprs "(\"ab\" '(1 2)'c 'ab)"));;
+                            (Reader.read_sexprs "(list \"ab\" '(1 2)'c 'ab)"));;
+                            
   let freevartest = make_fvars_tbl test ;; 
   let constvartest = make_consts_tbl test ;; 
 
