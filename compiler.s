@@ -180,10 +180,10 @@
 ;;; from two pointers %3 and %4
 ;;; Stores result in register %1
 %macro MAKE_TWO_WORDS 4 
-        MALLOC %1, TYPE_SIZE+WORD_BYTES*2
+        MALLOC %1, TYPE_SIZE+WORD_SIZE*2
         mov byte [%1], %2
         mov qword [%1+TYPE_SIZE], %3
-        mov qword [%1+TYPE_SIZE+WORD_BYTES], %4
+        mov qword [%1+TYPE_SIZE+WORD_SIZE], %4
 %endmacro
 
 %macro MAKE_WORDS_LIT 3
@@ -755,3 +755,4 @@ write_sob_if_not_void:
 section .data
 .newline:
 	db CHAR_NEWLINE, 0
+
