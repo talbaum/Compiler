@@ -377,15 +377,16 @@ let rec get_represent elem constant_table= match elem with
   | Sexpr(Symbol (e) as tmp) ->  "MAKE_LITERAL_SYMBOL(consts+" ^ (find_element tmp constant_table) ^  ")"                             (*implement this*)
   | Sexpr(String (e)) -> "MAKE_LITERAL_STRING \"" ^ e ^ "\""
   | Sexpr(Pair (car,cdr)) -> "MAKE_LITERAL(consts+" ^ (find_element car constant_table) ^ ",consts+" ^ (find_element cdr constant_table) ^ ")"
-  | Sexpr(Vector (sexprs_list))-> "MAKE_LITERAL_VECTOR(" ^ 
-      (list_to_string(List.map (fun(elem) -> get_represent (Sexpr(elem)) constant_table) sexprs_list )) ^ ")"
+  | Sexpr(Vector (sexprs_list))->
+  let tmp = "MAKE_LITERAL_VECTOR(" ^ 
+      (list_to_string(List.map (fun(elem) -> "consts+" ^ find_element (elem) constant_table ^ ",") sexprs_list )) in
+   String.sub tmp 0 (String.length tmp - 1) ^ ")"
 ;;
 let build_single_constant_row elem constant_table = 
   let size = get_size constant_table in
   let offset = get_offset constant_table in
   let represent = get_represent elem constant_table in
  [(elem , (size + offset) , represent)]
-
 
 
 let rec create_const_table list constant_table= match list with
@@ -452,7 +453,7 @@ init_basics @ list;;
     
  let test = List.map Semantics.run_semantics
                          (Tag_Parser.tag_parse_expressions
-                            (Reader.read_sexprs "(list \"ab\" '(1 2)'c 'ab)"));;
+                            (Reader.read_sexprs "#(1 2 3)"));;
                             
   let freevartest = make_fvars_tbl test ;; 
   let constvartest = make_consts_tbl test ;; 
