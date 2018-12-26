@@ -216,12 +216,25 @@ init_basics @ list;;
   | Vector(sexpr_list) as v -> Printf.sprintf "mov rax,AddressInConstTable(\"%s\")" v *)
   |_ -> "CHINO";;
 
+let rec addressInConstTable constant_table find_me= match constant_table with
+| [] -> -9999
+| _ -> let first = List.hd constant_table in
+       let (sexpr,address,_) = first in
+       if sexpr = find_me then address else addressInConstTable (List.tl constant_table) find_me;;
+       
+
+let rec addressInFvarTable fvar_table find_me= match fvar_table with
+| [] -> -9999
+| _ -> let first = List.hd fvar_table in
+       let (sexpr,address) = first in
+       if sexpr = find_me then address else addressInFvarTable (List.tl fvar_table) find_me;;
+       
 
    let rec generate_handle consts fvars e = match e with
-  | Const'(x)-> (match x with 
-            | Void -> "mov rax,AddressInConstTable(Void)" 
-            | Sexpr(sexpr) -> get_type_of_sexpr sexpr  )
-  | Var'(VarFree(str)) ->"mov rax, qword [LabelInFVarTable(" ^ str ^")]"
+  | Const'(x)-> let address = addressInConstTable consts x in
+                "mov rax, consts+" ^ string_of_int address
+  | Var'(VarFree(str)) -> let address = addressInFvarTable fvars str in
+                "mov rax, qword [consts+" ^ string_of_int address ^"]"
   | Var'(VarParam (str , minor)) -> "mov rax, qword [rbp + 8 ∗ (4 + minor)]"
   | Var'(VarBound (str ,major, minor)) ->"mov rax, qword [rbp + 8 ∗ 2]
   mov rax, qword [rax + 8 ∗ major]
