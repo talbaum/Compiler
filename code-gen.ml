@@ -127,12 +127,12 @@ let rec get_represent elem constant_table= match elem with
   | Sexpr(Char(e)) -> "MAKE_LITERAL_CHAR(\'" ^ (Char.escaped e) ^ "\')"
   | Sexpr(Number(Int(e))) -> "MAKE_LITERAL_INT(" ^ (string_of_int e) ^ ")"
   | Sexpr(Number(Float(e))) -> "MAKE_LITERAL_FLOAT(" ^(string_of_float e) ^ ")"
-  | Sexpr(Symbol (e) as tmp) ->  "MAKE_LITERAL_SYMBOL(consts+" ^ (find_element tmp constant_table) ^  ")"                             (*implement this*)
+  | Sexpr(Symbol (e) as tmp) ->  "MAKE_LITERAL_SYMBOL(const_tbl+" ^ (find_element tmp constant_table) ^  ")"                             (*implement this*)
   | Sexpr(String (e)) -> "MAKE_LITERAL_STRING \"" ^ e ^ "\""
-  | Sexpr(Pair (car,cdr)) -> "MAKE_LITERAL(consts+" ^ (find_element car constant_table) ^ ",consts+" ^ (find_element cdr constant_table) ^ ")"
+  | Sexpr(Pair (car,cdr)) -> "MAKE_LITERAL_PAIR(const_tbl+" ^ (find_element car constant_table) ^ ",const_tbl+" ^ (find_element cdr constant_table) ^ ")"
   | Sexpr(Vector (sexprs_list))->
   let tmp = "MAKE_LITERAL_VECTOR(" ^ 
-      (list_to_string(List.map (fun(elem) -> "consts+" ^ find_element (elem) constant_table ^ ",") sexprs_list )) in
+      (list_to_string(List.map (fun(elem) -> "const_tbl+" ^ find_element (elem) constant_table ^ ",") sexprs_list )) in
    String.sub tmp 0 (String.length tmp - 1) ^ ")"
 ;;
 let build_single_constant_row elem constant_table = 
@@ -204,37 +204,26 @@ init_basics @ list;;
   create_fvar_table fvar_set 0
   ;;
     
-  let get_type_of_sexpr sexp = match sexp with
-  | Bool (bool) ->  Printf.sprintf "mov rax,AddressInConstTable(\"%B\")" bool
-  | Nil ->  Printf.sprintf "mov rax,AddressInConstTable(Nil)"
-  | Number(Int(n)) ->    Printf.sprintf "mov rax,AddressInConstTable(\"%d\")" n
-  | Number(Float(n)) ->    Printf.sprintf "mov rax,AddressInConstTable(\"%f\")" n
-  | Char (c) ->  Printf.sprintf "mov rax,AddressInConstTable(\"%c\")" c
-  | String (s) ->    Printf.sprintf "mov rax,AddressInConstTable(\"%s\")" s
-  | Symbol (string) ->  Printf.sprintf "mov rax,AddressInConstTable(\"%s\")" string
-  (* | Pair(car,cdr) as p -> Printf.sprintf "mov rax,AddressInConstTable(\"%s\")" p
-  | Vector(sexpr_list) as v -> Printf.sprintf "mov rax,AddressInConstTable(\"%s\")" v *)
-  |_ -> "CHINO";;
 
 let rec addressInConstTable constant_table find_me= match constant_table with
 | [] -> -9999
 | _ -> let first = List.hd constant_table in
        let (sexpr,address,_) = first in
-       if sexpr = find_me then address else addressInConstTable (List.tl constant_table) find_me;;
+       if isEqual_constant sexpr find_me then address else addressInConstTable (List.tl constant_table) find_me;;
        
 
 let rec addressInFvarTable fvar_table find_me= match fvar_table with
 | [] -> -9999
 | _ -> let first = List.hd fvar_table in
-       let (sexpr,address) = first in
-       if sexpr = find_me then address else addressInFvarTable (List.tl fvar_table) find_me;;
+       let (fvar_name,address) = first in
+       if  fvar_name = find_me then address else addressInFvarTable (List.tl fvar_table) find_me;;
        
 
    let rec generate_handle consts fvars e = match e with
   | Const'(x)-> let address = addressInConstTable consts x in
-                "mov rax, consts+" ^ string_of_int address
+                "mov rax, const_tbl+" ^ string_of_int address
   | Var'(VarFree(str)) -> let address = addressInFvarTable fvars str in
-                "mov rax, qword [consts+" ^ string_of_int address ^"]"
+                "mov rax, qword [const_tbl+" ^ string_of_int address ^"]"
   | Var'(VarParam (str , minor)) -> "mov rax, qword [rbp + 8 ∗ (4 + minor)]"
   | Var'(VarBound (str ,major, minor)) ->"mov rax, qword [rbp + 8 ∗ 2]
   mov rax, qword [rax + 8 ∗ major]
@@ -247,11 +236,11 @@ let rec addressInFvarTable fvar_table find_me= match fvar_table with
     mov rax, sob_void" in
     value_text ^ var_text
   | If'(test,dit,dif)->
-    let test_text= (generate_handle consts fvars test ) ^ "cmp rax, sob_false
+    let test_text= (generate_handle consts fvars test ) ^ "\n cmp rax, SOB_FALSE_ADDRESS
       je Lelse \n" in
-    let dit_text = (generate_handle consts fvars dit ) ^ "jmp Lexit
+    let dit_text = (generate_handle consts fvars dit ) ^ "\n jmp Lexit
       Lelse: \n" in 
-    let dif_text = (generate_handle consts fvars dif ) ^ "Lexit:" in
+    let dif_text = (generate_handle consts fvars dif ) ^ "\n Lexit:" in
     test_text ^ dit_text ^ dif_text 
   | Seq' (list) ->(gen_map list "\n" consts fvars)
   | Set'(Var'(VarParam(_, minor)),value)-> (generate_handle consts fvars value ) ^ "
@@ -266,13 +255,53 @@ let rec addressInFvarTable fvar_table find_me= match fvar_table with
   mov rax, sob_void"
   (* | Def' of expr' * expr' *) (*  /////////////// check if need to implement*)
   | Or'(list)-> ((gen_map list "
-  cmp rax, sob_false
-  jne Lexit" consts fvars) ^ "
+  cmp rax, SOB_FALSE_ADDRESS
+  jne Lexit\n" consts fvars) ^ "
   Lexit:" )
-  (* | LambdaSimple' of string list * expr'
-  | LambdaOpt' of string list * string * expr'
-  | Applic' of expr' * (expr' list)
-  | ApplicTP' of expr' * (expr' list);; *)
+  (* | LambdaSimple' (params , body) ->  *)
+  (* | LambdaOpt' of string list * string * expr' *)
+  | Applic' (proc , arg_list) -> 
+          let rev = List.rev arg_list in
+          let args_text = gen_map rev "push rax \n" consts fvars in
+          let post_args = args_text ^ "push n \n" in
+          let proc_text = generate_handle consts fvars proc in
+          let with_proc = post_args ^ proc_text in
+          let assembly_check = 
+          "
+          cmp byte [rax] T_CLOSURE
+          jne Applicexit
+          push rax qword [rax+1]
+          call rax qword [rax+9]
+          add rsp, 8*1 ; pop env
+          pop rbx ; pop
+          arg count
+          shl rbx, 3 ; rbx = rbx * 8
+          add rsp, rbx; pop args
+          Applicexit:
+          " in 
+          with_proc ^ assembly_check
+
+  | ApplicTP'  (proc , arg_list) ->
+          let rev = List.rev arg_list in
+          let args_text = gen_map rev "push rax \n" consts fvars in
+          let post_args = args_text ^ "push n \n" in
+          let proc_text = generate_handle consts fvars proc in
+          let with_proc = post_args ^ proc_text in
+          let assembly_check = 
+          "
+          cmp byte [rax] T_CLOSURE
+          jne ApplicTPexit
+          push rax qword [rax+1]
+          push qword [rbp + 8 * 1] ; old ret addr
+          add rsp, 8*1 ; pop env
+          pop rbx ; pop
+          arg count
+          shl rbx, 3 ; rbx = rbx * 8
+          add rsp, rbx; pop args
+          ApplicTPexit:
+          " in 
+          with_proc ^ assembly_check
+
   |_->""
   
 
@@ -283,7 +312,7 @@ let rec addressInFvarTable fvar_table find_me= match fvar_table with
    let generate consts fvars e = generate_handle consts fvars e ;;
 
 end;;
-
+(* 
 (* -------------------------------------------- END OF ORIGINAL CODE ---------------------------*)
    let list_to_string s =
     String.concat "" (List.map (fun str ->  str) s);;
@@ -400,12 +429,12 @@ let rec get_represent elem constant_table= match elem with
   | Sexpr(Char(e)) -> "MAKE_LITERAL_CHAR(\'" ^ (Char.escaped e) ^ "\')"
   | Sexpr(Number(Int(e))) -> "MAKE_LITERAL_INT(" ^ (string_of_int e) ^ ")"
   | Sexpr(Number(Float(e))) -> "MAKE_LITERAL_FLOAT(" ^(string_of_float e) ^ ")"
-  | Sexpr(Symbol (e) as tmp) ->  "MAKE_LITERAL_SYMBOL(consts+" ^ (find_element tmp constant_table) ^  ")"                             (*implement this*)
+  | Sexpr(Symbol (e) as tmp) ->  "MAKE_LITERAL_SYMBOL(const_tbl+" ^ (find_element tmp constant_table) ^  ")"                             (*implement this*)
   | Sexpr(String (e)) -> "MAKE_LITERAL_STRING \"" ^ e ^ "\""
-  | Sexpr(Pair (car,cdr)) -> "MAKE_LITERAL(consts+" ^ (find_element car constant_table) ^ ",consts+" ^ (find_element cdr constant_table) ^ ")"
+  | Sexpr(Pair (car,cdr)) -> "MAKE_LITERAL(const_tbl+" ^ (find_element car constant_table) ^ ",const_tbl+" ^ (find_element cdr constant_table) ^ ")"
   | Sexpr(Vector (sexprs_list))->
   let tmp = "MAKE_LITERAL_VECTOR(" ^ 
-      (list_to_string(List.map (fun(elem) -> "consts+" ^ find_element (elem) constant_table ^ ",") sexprs_list )) in
+      (list_to_string(List.map (fun(elem) -> "const_tbl+" ^ find_element (elem) constant_table ^ ",") sexprs_list )) in
    String.sub tmp 0 (String.length tmp - 1) ^ ")"
 ;;
 let build_single_constant_row elem constant_table = 
@@ -545,9 +574,9 @@ init_basics @ list;;
     
  let test = List.map Semantics.run_semantics
                          (Tag_Parser.tag_parse_expressions
-                            (Reader.read_sexprs "#(1 2 3)"));;
+                            (Reader.read_sexprs "(1 2 3)"));;
                             
   let freevartest = make_fvars_tbl test ;; 
   let constvartest = make_consts_tbl test ;; 
 
-
+ *)
