@@ -39,7 +39,7 @@ module Code_Gen : CODE_GEN = struct
   and type_of_var e sexpr_list= match e with
   | [VarBound(name, major,minor)] -> sexpr_list @ [Sexpr(String(name))] 
   | [VarParam(name, minor)] -> sexpr_list @ [Sexpr(String(name))] 
-  | [VarFree(name)] -> []
+  | [VarFree(name)] ->[]
   | _ -> []
 ;;
 
@@ -130,8 +130,10 @@ let rec get_represent elem constant_table= match elem with
   | Sexpr(Symbol (e) as tmp) ->  "MAKE_LITERAL_SYMBOL(consts+" ^ (find_element tmp constant_table) ^  ")"                             (*implement this*)
   | Sexpr(String (e)) -> "MAKE_LITERAL_STRING \"" ^ e ^ "\""
   | Sexpr(Pair (car,cdr)) -> "MAKE_LITERAL(consts+" ^ (find_element car constant_table) ^ ",consts+" ^ (find_element cdr constant_table) ^ ")"
-  | Sexpr(Vector (sexprs_list))-> "MAKE_LITERAL_VECTOR(" ^ 
-      (list_to_string(List.map (fun(elem) -> get_represent (Sexpr(elem)) constant_table) sexprs_list )) ^ ")"
+  | Sexpr(Vector (sexprs_list))->
+  let tmp = "MAKE_LITERAL_VECTOR(" ^ 
+      (list_to_string(List.map (fun(elem) -> "consts+" ^ find_element (elem) constant_table ^ ",") sexprs_list )) in
+   String.sub tmp 0 (String.length tmp - 1) ^ ")"
 ;;
 let build_single_constant_row elem constant_table = 
   let size = get_size constant_table in
@@ -140,12 +142,10 @@ let build_single_constant_row elem constant_table =
  [(elem , (size + offset) , represent)]
 
 
-
 let rec create_const_table list constant_table= match list with
 | [] -> []
 | (elem::others) -> let new_row = build_single_constant_row elem constant_table in 
   new_row @ (create_const_table others (constant_table @ new_row));;
-
 
 (*---------------------------- Free var table -----------------------------*)
 
@@ -204,57 +204,70 @@ init_basics @ list;;
   create_fvar_table fvar_set 0
   ;;
     
-  
-  let generate consts fvars e = raise X_not_yet_implemented;;
- (* Printf.sprintf   *)
-  (* let generate consts fvars e = match e with
-  | Const'(x)->"mov rax,AddressInConstTable(" ^ x ^")" 
+  let get_type_of_sexpr sexp = match sexp with
+  | Bool (bool) ->  Printf.sprintf "mov rax,AddressInConstTable(\"%B\")" bool
+  | Nil ->  Printf.sprintf "mov rax,AddressInConstTable(Nil)"
+  | Number(Int(n)) ->    Printf.sprintf "mov rax,AddressInConstTable(\"%d\")" n
+  | Number(Float(n)) ->    Printf.sprintf "mov rax,AddressInConstTable(\"%f\")" n
+  | Char (c) ->  Printf.sprintf "mov rax,AddressInConstTable(\"%c\")" c
+  | String (s) ->    Printf.sprintf "mov rax,AddressInConstTable(\"%s\")" s
+  | Symbol (string) ->  Printf.sprintf "mov rax,AddressInConstTable(\"%s\")" string
+  (* | Pair(car,cdr) as p -> Printf.sprintf "mov rax,AddressInConstTable(\"%s\")" p
+  | Vector(sexpr_list) as v -> Printf.sprintf "mov rax,AddressInConstTable(\"%s\")" v *)
+  |_ -> "CHINO";;
+
+
+   let rec generate_handle consts fvars e = match e with
+  | Const'(x)-> (match x with 
+            | Void -> "mov rax,AddressInConstTable(Void)" 
+            | Sexpr(sexpr) -> get_type_of_sexpr sexpr  )
   | Var'(VarFree(str)) ->"mov rax, qword [LabelInFVarTable(" ^ str ^")]"
   | Var'(VarParam (str , minor)) -> "mov rax, qword [rbp + 8 ∗ (4 + minor)]"
   | Var'(VarBound (str ,major, minor)) ->"mov rax, qword [rbp + 8 ∗ 2]
   mov rax, qword [rax + 8 ∗ major]
   mov rax, qword [rax + 8 ∗ minor]"
   (* | Box' of var *) (*  /////////////// check if need to implement*)
-  | BoxGet'(Var'(v) as vari)-> (generate consts fvars vari ) ^ "\n mov rax, qword [rax]"
-  | BoxSet'(Var'(v) as vari ,value) -> 
-    let  value_text =(generate consts fvars value ) ^ "\n push rax" in
-    let var_text = (generate consts fvars vari ) ^ " \n pop qword [rax]
+  | BoxGet'(((v)) as vari)-> (generate_handle consts fvars (Var'(vari)) ) ^ "\n mov rax, qword [rax]"
+  | BoxSet'((v) as vari ,value) -> 
+    let  value_text =(generate_handle consts fvars value ) ^ "\n push rax" in
+    let var_text = (generate_handle consts fvars  (Var'(vari)) ) ^ " \n pop qword [rax]
     mov rax, sob_void" in
     value_text ^ var_text
   | If'(test,dit,dif)->
-    let test_text= (generate consts fvars test ) ^ "cmp rax, sob_false
+    let test_text= (generate_handle consts fvars test ) ^ "cmp rax, sob_false
       je Lelse \n" in
-    let dit_text = (generate consts fvars dit ) ^ "jmp Lexit
+    let dit_text = (generate_handle consts fvars dit ) ^ "jmp Lexit
       Lelse: \n" in 
-    let dif_text = (generate consts fvars dif ) ^ "Lexit:" in
+    let dif_text = (generate_handle consts fvars dif ) ^ "Lexit:" in
     test_text ^ dit_text ^ dif_text 
-  | Seq' (list) ->(gen_map list "\n")
-  | Set(Var'(VarParam'(_, minor)),value)-> (generate consts fvars value ) ^ "
+  | Seq' (list) ->(gen_map list "\n" consts fvars)
+  | Set'(Var'(VarParam(_, minor)),value)-> (generate_handle consts fvars value ) ^ "
   mov qword [rbp + 8 ∗ (4 + minor)], rax
   mov rax, sob_void"
-  | Set(Var'(VarBound' (str ,major, minor)),value)->(generate consts fvars value ) ^
+  | Set'(Var'(VarBound (str ,major, minor)),value)->(generate_handle consts fvars value ) ^
   "mov rbx, qword [rbp + 8 ∗ 2]
   mov rbx, qword [rbx + 8 ∗ major]
   mov qword [rbx + 8 ∗ minor], rax
   mov rax, sob_void"
-  | Set(Var'(VarFree'(str)),value)->"mov qword [LabelInFVarTable(v)], rax
+  | Set'(Var'(VarFree(str)),value)->"mov qword [LabelInFVarTable(v)], rax
   mov rax, sob_void"
   (* | Def' of expr' * expr' *) (*  /////////////// check if need to implement*)
   | Or'(list)-> ((gen_map list "
   cmp rax, sob_false
-  jne Lexit") ^ "
-  Lexit:")
+  jne Lexit" consts fvars) ^ "
+  Lexit:" )
   (* | LambdaSimple' of string list * expr'
   | LambdaOpt' of string list * string * expr'
   | Applic' of expr' * (expr' list)
   | ApplicTP' of expr' * (expr' list);; *)
   |_->""
-  ;;
+  
 
-  let gen_map list code_to_write = 
-  let mapped = List.map (fun(elem)-> (generate elem) ^ code_to_write) list in
-  (list_to_string mapped) ;; *)
+  and gen_map list code_to_write consts fvars = 
+  let mapped = List.map (fun(elem)-> (generate_handle consts fvars elem) ^ code_to_write) list in
+  (list_to_string mapped) ;; 
 
+   let generate consts fvars e = generate_handle consts fvars e ;;
 
 end;;
 
@@ -450,6 +463,72 @@ init_basics @ list;;
   let fvar_set = remove_duplicate fvar_list in 
   create_fvar_table fvar_set 0
   ;;
+    
+  let get_type_of_sexpr sexp = match sexp with
+  | Bool (bool) ->  Printf.sprintf "mov rax,AddressInConstTable(\"%B\")" bool
+  | Nil ->  Printf.sprintf "mov rax,AddressInConstTable(Nil)"
+  | Number(Int(n)) ->    Printf.sprintf "mov rax,AddressInConstTable(\"%d\")" n
+  | Number(Float(n)) ->    Printf.sprintf "mov rax,AddressInConstTable(\"%f\")" n
+  | Char (c) ->  Printf.sprintf "mov rax,AddressInConstTable(\"%c\")" c
+  | String (s) ->    Printf.sprintf "mov rax,AddressInConstTable(\"%s\")" s
+  | Symbol (string) ->  Printf.sprintf "mov rax,AddressInConstTable(\"%s\")" string
+  (* | Pair(car,cdr) as p -> Printf.sprintf "mov rax,AddressInConstTable(\"%s\")" p
+  | Vector(sexpr_list) as v -> Printf.sprintf "mov rax,AddressInConstTable(\"%s\")" v *)
+  |_ -> "CHINO";;
+
+
+   let rec generate_handle consts fvars e = match e with
+  | Const'(x)-> (match x with 
+            | Void -> "mov rax,AddressInConstTable(Void)" 
+            | Sexpr(sexpr) -> get_type_of_sexpr sexpr  )
+  | Var'(VarFree(str)) ->"mov rax, qword [LabelInFVarTable(" ^ str ^")]"
+  | Var'(VarParam (str , minor)) -> "mov rax, qword [rbp + 8 ∗ (4 + minor)]"
+  | Var'(VarBound (str ,major, minor)) ->"mov rax, qword [rbp + 8 ∗ 2]
+  mov rax, qword [rax + 8 ∗ major]
+  mov rax, qword [rax + 8 ∗ minor]"
+  (* | Box' of var *) (*  /////////////// check if need to implement*)
+  | BoxGet'(((v)) as vari)-> (generate_handle consts fvars (Var'(vari)) ) ^ "\n mov rax, qword [rax]"
+  | BoxSet'((v) as vari ,value) -> 
+    let  value_text =(generate_handle consts fvars value ) ^ "\n push rax" in
+    let var_text = (generate_handle consts fvars  (Var'(vari)) ) ^ " \n pop qword [rax]
+    mov rax, sob_void" in
+    value_text ^ var_text
+  | If'(test,dit,dif)->
+    let test_text= (generate_handle consts fvars test ) ^ "cmp rax, sob_false
+      je Lelse \n" in
+    let dit_text = (generate_handle consts fvars dit ) ^ "jmp Lexit
+      Lelse: \n" in 
+    let dif_text = (generate_handle consts fvars dif ) ^ "Lexit:" in
+    test_text ^ dit_text ^ dif_text 
+  | Seq' (list) ->(gen_map list "\n" consts fvars)
+  | Set'(Var'(VarParam(_, minor)),value)-> (generate_handle consts fvars value ) ^ "
+  mov qword [rbp + 8 ∗ (4 + minor)], rax
+  mov rax, sob_void"
+  | Set'(Var'(VarBound (str ,major, minor)),value)->(generate_handle consts fvars value ) ^
+  "mov rbx, qword [rbp + 8 ∗ 2]
+  mov rbx, qword [rbx + 8 ∗ major]
+  mov qword [rbx + 8 ∗ minor], rax
+  mov rax, sob_void"
+  | Set'(Var'(VarFree(str)),value)->"mov qword [LabelInFVarTable(v)], rax
+  mov rax, sob_void"
+  (* | Def' of expr' * expr' *) (*  /////////////// check if need to implement*)
+  | Or'(list)-> ((gen_map list "
+  cmp rax, sob_false
+  jne Lexit" consts fvars) ^ "
+  Lexit:" )
+  (* | LambdaSimple' of string list * expr'
+  | LambdaOpt' of string list * string * expr'
+  | Applic' of expr' * (expr' list)
+  | ApplicTP' of expr' * (expr' list);; *)
+  |_->""
+  
+
+  and gen_map list code_to_write consts fvars = 
+  let mapped = List.map (fun(elem)-> (generate_handle consts fvars elem) ^ code_to_write) list in
+  (list_to_string mapped) ;; 
+
+   let generate consts fvars e = generate_handle consts fvars e ;;
+
     
  let test = List.map Semantics.run_semantics
                          (Tag_Parser.tag_parse_expressions
