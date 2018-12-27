@@ -206,20 +206,20 @@ init_basics @ list;;
     
 
 let rec addressInConstTable constant_table find_me= match constant_table with
-| [] -> -9999
+| [] -> 0
 | _ -> let first = List.hd constant_table in
        let (sexpr,address,_) = first in
        if isEqual_constant sexpr find_me then address else addressInConstTable (List.tl constant_table) find_me;;
        
 
 let rec addressInFvarTable fvar_table find_me= match fvar_table with
-| [] -> -9999
+| [] -> 0
 | _ -> let first = List.hd fvar_table in
        let (fvar_name,address) = first in
        if  fvar_name = find_me then address else addressInFvarTable (List.tl fvar_table) find_me;;
        
 
-   let rec generate_handle consts fvars e = match e with
+   let rec generate_handle consts fvars e env = match e with
   | Const'(x)-> let address = addressInConstTable consts x in
                 "mov rax, const_tbl+" ^ string_of_int address
   | Var'(VarFree(str)) -> let address = addressInFvarTable fvars str in
@@ -229,24 +229,24 @@ let rec addressInFvarTable fvar_table find_me= match fvar_table with
   mov rax, qword [rax + 8 ∗ major]
   mov rax, qword [rax + 8 ∗ minor]"
   (* | Box' of var *) (*  /////////////// check if need to implement*)
-  | BoxGet'(((v)) as vari)-> (generate_handle consts fvars (Var'(vari)) ) ^ "\n mov rax, qword [rax]"
+  | BoxGet'(((v)) as vari)-> (generate_handle consts fvars (Var'(vari)) env ) ^ "\n mov rax, qword [rax]"
   | BoxSet'((v) as vari ,value) -> 
-    let  value_text =(generate_handle consts fvars value ) ^ "\n push rax" in
-    let var_text = (generate_handle consts fvars  (Var'(vari)) ) ^ " \n pop qword [rax]
+    let  value_text =(generate_handle consts fvars value env ) ^ "\n push rax" in
+    let var_text = (generate_handle consts fvars  (Var'(vari)) env) ^ " \n pop qword [rax]
     mov rax, sob_void" in
     value_text ^ var_text
   | If'(test,dit,dif)->
-    let test_text= (generate_handle consts fvars test ) ^ "\n cmp rax, SOB_FALSE_ADDRESS
+    let test_text= (generate_handle consts fvars test env ) ^ "\n cmp rax, SOB_FALSE_ADDRESS
       je Lelse \n" in
-    let dit_text = (generate_handle consts fvars dit ) ^ "\n jmp Lexit
+    let dit_text = (generate_handle consts fvars dit env) ^ "\n jmp Lexit
       Lelse: \n" in 
-    let dif_text = (generate_handle consts fvars dif ) ^ "\n Lexit:" in
+    let dif_text = (generate_handle consts fvars dif env) ^ "\n Lexit:" in
     test_text ^ dit_text ^ dif_text 
   | Seq' (list) ->(gen_map list "\n" consts fvars)
-  | Set'(Var'(VarParam(_, minor)),value)-> (generate_handle consts fvars value ) ^ "
+  | Set'(Var'(VarParam(_, minor)),value)-> (generate_handle consts fvars value env) ^ "
   mov qword [rbp + 8 ∗ (4 + minor)], rax
   mov rax, sob_void"
-  | Set'(Var'(VarBound (str ,major, minor)),value)->(generate_handle consts fvars value ) ^
+  | Set'(Var'(VarBound (str ,major, minor)),value)->(generate_handle consts fvars value env) ^
   "mov rbx, qword [rbp + 8 ∗ 2]
   mov rbx, qword [rbx + 8 ∗ major]
   mov qword [rbx + 8 ∗ minor], rax
@@ -258,13 +258,34 @@ let rec addressInFvarTable fvar_table find_me= match fvar_table with
   cmp rax, SOB_FALSE_ADDRESS
   jne Lexit\n" consts fvars) ^ "
   Lexit:" )
-  (* | LambdaSimple' (params , body) ->  *)
+  | LambdaSimple' (params , body) ->
+      let old_env_size = (List.length env) in
+      let ext_env_size = old_env_size + 1 in
+      let ext_env_malloc = Printf.sprintf "MALLOC rax %d" ext_env_size in
+      let init_for = Printf.sprintf "
+      push rbx 
+      push rcx
+      mov rcx %d" ext_env_size ^"
+      mov	rbx, %d" old_env_size in
+      let loop_body = Printf.sprintf "
+      loop:
+      mov [rax] 
+   
+
+   dec rcx
+   dec rbx
+   jnz loop " in
+      new_env_malloc ^ init_for ^loop_body
+
+
+
+
   (* | LambdaOpt' of string list * string * expr' *)
   | Applic' (proc , arg_list) -> 
           let rev = List.rev arg_list in
           let args_text = gen_map rev "push rax \n" consts fvars in
           let post_args = args_text ^ "push n \n" in
-          let proc_text = generate_handle consts fvars proc in
+          let proc_text = generate_handle consts fvars proc env in
           let with_proc = post_args ^ proc_text in
           let assembly_check = 
           "
@@ -285,7 +306,7 @@ let rec addressInFvarTable fvar_table find_me= match fvar_table with
           let rev = List.rev arg_list in
           let args_text = gen_map rev "push rax \n" consts fvars in
           let post_args = args_text ^ "push n \n" in
-          let proc_text = generate_handle consts fvars proc in
+          let proc_text = generate_handle consts fvars proc env in
           let with_proc = post_args ^ proc_text in
           let assembly_check = 
           "
@@ -305,11 +326,11 @@ let rec addressInFvarTable fvar_table find_me= match fvar_table with
   |_->""
   
 
-  and gen_map list code_to_write consts fvars = 
-  let mapped = List.map (fun(elem)-> (generate_handle consts fvars elem) ^ code_to_write) list in
+  and gen_map list code_to_write consts fvars ext_env = 
+  let mapped = List.map (fun(elem)-> (generate_handle consts fvars elem env) ^ code_to_write) list in
   (list_to_string mapped) ;; 
 
-   let generate consts fvars e = generate_handle consts fvars e ;;
+   let generate consts fvars e = generate_handle consts fvars e [] ;;
 
 end;;
 (* 
