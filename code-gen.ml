@@ -218,6 +218,9 @@ let rec addressInFvarTable fvar_table find_me= match fvar_table with
        let (fvar_name,address) = first in
        if  fvar_name = find_me then address else addressInFvarTable (List.tl fvar_table) find_me;;
        
+let rec get_param_names_as_string params = match params with
+| [] -> ""
+| (hd::tl) -> hd ^ (get_param_names_as_string tl);;
 
    let rec generate_handle consts fvars e env = match e with
   | Const'(x)-> let address = addressInConstTable consts x in
@@ -261,21 +264,92 @@ let rec addressInFvarTable fvar_table find_me= match fvar_table with
   | LambdaSimple' (params , body) ->
       let old_env_size = (List.length env) in
       let ext_env_size = old_env_size + 1 in
-      let ext_env_malloc = Printf.sprintf "MALLOC rax %d" ext_env_size in
+      let ext_env_malloc = Printf.sprintf " pushad \n push rax \n MALLOC rax %d" ext_env_size in
       let init_for = Printf.sprintf "
-      push rbx 
-      push rcx
-      mov rcx %d" ext_env_size ^"
-      mov	rbx, %d" old_env_size in
+      push rbx  ;; i
+      push rcx  ;; j
+      push rdx  ;; address of extenv[j]
+      push rsi ;; address of env[i]
+      mov rcx ,%d" ext_env_size ^ (* init j with n+1*)
+     Printf.sprintf" 
+      mov	rbx, %d" old_env_size in (* init i with n*)
       let loop_body = Printf.sprintf "
       loop:
-      mov [rax] 
-   
+      mov rdx ,rcx * 8 ;;get the j'th element in ext env
+      mov rdx ,rax+rdx ;; get to its address from the start of the vector
+      mov rsi ,rbx * 8 ;;get the i'th element in env
+      mov rsi, rsi + *** address of env ** ;; get to its address from the start of the vector - missing the address of the env vector
+      mov qword[rdx], qword[rsi] ;; assignment to he new vector
+      dec rcx ;;contonue the loop
+      dec rbx
+      jnz loop
 
-   dec rcx
-   dec rbx
-   jnz loop " in
-      new_env_malloc ^ init_for ^loop_body
+  clean_reg:
+   pop rbx
+   pop rcx
+   pop rdx
+   pop rsi
+    " in
+    let params_len = (List.length params) in 
+    let ext_env_zero_elem_malloc = Printf.sprintf " push rsp \n MALLOC rsp %d" (params_len * 8) in (* get addres of vector in extenv[0]*)
+   let init =Printf.sprintf "
+    push rbx ;;length of params
+    push rcx ;; pointer i in extenv [0][i]
+    mov rbx, %d" params_len  in
+let init_params = Printf.sprintf "
+  push rsi
+  MALLOC rsi %s"  (get_param_names_as_string params) in (* address of the params*)
+    let loop =  "
+    push rdx
+    mov rdx ,rbx  ;; save the original num of params
+    loop1:
+    mov rcx ,8 * rbx  ;;gets to the relevent i'th place insdide extenv[0][i]
+    mov rcx, rsp+rcx ;; the actual address of extenv[0][i]
+    jmp find_param
+
+    after_find_param:
+    mov qword[rcx] rdi ;;the relevant param will be inside rdi . we will mov it to extenv[0][i] in rcx
+    dec rbx 
+    jnz loop1  ;;continue the looop
+
+    pop rsp
+    pop rbx
+    pop rcx
+    pop rdi
+    pop rdx
+   "in
+    let find_param = "
+find_param:
+  cmp rdx rbx ;; check which param were talking about, rdx is n and rbx is i
+  je found
+  dec rdx
+  jnz find_param
+  
+  found:
+    mov rdi , rbx * 8     ;;when we find the arguemnt we mov its value to rdi.
+    mov rdi , qword[rsi + rdi ] ;; takes params[i] into rdi
+    jmp after_find_param
+ " in
+ let create_closure =Printf.sprintf " 
+   push rbx
+   mov rbx, rax   ;;save the address of extenv into rbx 
+   MAKE_CLOSURE (rax, rbx ,Lcode ) ;; create closure , results in rax, ExtEnv is in rbx, Lcode is the code to do
+   popad
+   jmp Lcode 
+
+  Lcode:
+    push rbp
+    mov rbp, rsp
+    %s
+    leave
+    ret
+
+  Lcont:
+ " (generate_handle consts fvars body (env@params))in 
+
+      ext_env_malloc ^ init_for ^loop_body ^ext_env_zero_elem_malloc ^ init ^ init_params ^  loop ^ find_param ^ create_closure
+
+
 
 
 
