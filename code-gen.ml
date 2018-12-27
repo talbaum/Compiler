@@ -119,12 +119,18 @@ let get_offset constant_table = match constant_table with
        let last = List.hd rev_table in
        let (_,last_offset,_)=last in
        last_offset;;
+let get_offset_fvars fvars_table = match fvars_table with
+| [] -> 0
+| _ -> let rev_table = List.rev fvars_table in
+       let last = List.hd rev_table in
+       let (_,last_offset)=last in
+       last_offset;;
 
 let rec get_represent elem constant_table= match elem with
   | Sexpr(Nil) -> "MAKE_NIL"
   | Void -> "MAKE_VOID"
   | Sexpr(Bool(e)) -> if e = true then "MAKE_BOOL(1)" else "MAKE_BOOL(0)"
-  | Sexpr(Char(e)) -> "MAKE_LITERAL_CHAR(\'" ^ (Char.escaped e) ^ "\')"
+  | Sexpr(Char(e)) -> Printf.sprintf "MAKE_LITERAL_CHAR(%d)" (Char.code e)
   | Sexpr(Number(Int(e))) -> "MAKE_LITERAL_INT(" ^ (string_of_int e) ^ ")"
   | Sexpr(Number(Float(e))) -> "MAKE_LITERAL_FLOAT(" ^(string_of_float e) ^ ")"
   | Sexpr(Symbol (e) as tmp) ->  "MAKE_LITERAL_SYMBOL(const_tbl+" ^ (find_element tmp constant_table) ^  ")"                             (*implement this*)
@@ -226,7 +232,7 @@ let rec get_param_names_as_string params = match params with
   | Const'(x)-> let address = addressInConstTable consts x in
                 "mov rax, const_tbl+" ^ string_of_int address
   | Var'(VarFree(str)) -> let address = addressInFvarTable fvars str in
-                "mov rax, qword [const_tbl+" ^ string_of_int address ^"]"
+                "mov rax, qword [fvar_tbl+" ^ string_of_int address ^"*WORD_SIZE]"
   | Var'(VarParam (str , minor)) -> "mov rax, qword [rbp + 8 ∗ (4 + minor)]"
   | Var'(VarBound (str ,major, minor)) ->"mov rax, qword [rbp + 8 ∗ 2]
   mov rax, qword [rax + 8 ∗ major]
@@ -236,7 +242,7 @@ let rec get_param_names_as_string params = match params with
   | BoxSet'((v) as vari ,value) -> 
     let  value_text =(generate_handle consts fvars value env ) ^ "\n push rax" in
     let var_text = (generate_handle consts fvars  (Var'(vari)) env) ^ " \n pop qword [rax]
-    mov rax, sob_void" in
+    mov rax, SOB_VOID_ADDRESS" in
     value_text ^ var_text
   | If'(test,dit,dif)->
     let test_text= (generate_handle consts fvars test env ) ^ "\n cmp rax, SOB_FALSE_ADDRESS
@@ -245,21 +251,29 @@ let rec get_param_names_as_string params = match params with
       Lelse: \n" in 
     let dif_text = (generate_handle consts fvars dif env) ^ "\n Lexit:" in
     test_text ^ dit_text ^ dif_text 
-  | Seq' (list) ->(gen_map list "\n" consts fvars)
+  | Seq' (list) ->(gen_map list "\n" consts fvars env)
   | Set'(Var'(VarParam(_, minor)),value)-> (generate_handle consts fvars value env) ^ "
   mov qword [rbp + 8 ∗ (4 + minor)], rax
-  mov rax, sob_void"
+  mov rax, SOB_VOID_ADDRESS"
   | Set'(Var'(VarBound (str ,major, minor)),value)->(generate_handle consts fvars value env) ^
   "mov rbx, qword [rbp + 8 ∗ 2]
   mov rbx, qword [rbx + 8 ∗ major]
   mov qword [rbx + 8 ∗ minor], rax
-  mov rax, sob_void"
-  | Set'(Var'(VarFree(str)),value)->"mov qword [LabelInFVarTable(v)], rax
-  mov rax, sob_void"
-  (* | Def' of expr' * expr' *) (*  /////////////// check if need to implement*)
+  mov rax, SOB_VOID_ADDRESS"
+  | Set'(Var'(VarFree(str)),value)->
+  let value_text = (generate_handle consts fvars value env) in
+  let address = addressInFvarTable fvars str in
+  value_text^"\n mov qword [fvar_tbl+" ^ string_of_int address ^"*WORD_SIZE], rax
+  mov rax, SOB_VOID_ADDRESS"
+  | Def'(Var'(VarFree(str)) , value)-> 
+  let value_text = (generate_handle consts fvars value env) in
+  let address =  addressInFvarTable fvars str in
+  value_text ^ "\n" ^
+   "mov [fvar_tbl+" ^ (string_of_int address) ^"*WORD_SIZE], rax \n"^ "mov rax, SOB_VOID_ADDRESS \n"
+
   | Or'(list)-> ((gen_map list "
   cmp rax, SOB_FALSE_ADDRESS
-  jne Lexit\n" consts fvars) ^ "
+  jne Lexit\n" consts fvars env) ^ "
   Lexit:" )
   | LambdaSimple' (params , body) ->
       let old_env_size = (List.length env) in
@@ -352,30 +366,27 @@ find_param:
 
 
 
-
-
-  (* | LambdaOpt' of string list * string * expr' *)
+ (* | LambdaOpt' of string list * string * expr' *)
   | Applic' (proc , arg_list) -> 
           let rev = List.rev arg_list in
-          let args_text = gen_map rev "push rax \n" consts fvars in
-          let post_args = args_text ^ "push n \n" in
+          let args_text = gen_map rev "\n push rax \n" consts fvars env in
+          let post_args = args_text ^ "\n push "^ (string_of_int (List.length arg_list))^" \n" in
           let proc_text = generate_handle consts fvars proc env in
           let with_proc = post_args ^ proc_text in
           let assembly_check = 
           "
-          cmp byte [rax] T_CLOSURE
+          cmp byte [rax], T_CLOSURE
           jne Applicexit
-          push rax qword [rax+1]
-          call rax qword [rax+9]
-          add rsp, 8*1 ; pop env
-          pop rbx ; pop
-          arg count
+          push qword [rax+1]
+          call qword [rax+9]
+          add rsp, 8*1         ; pop env
+          pop rbx ; pop arg count
           shl rbx, 3 ; rbx = rbx * 8
           add rsp, rbx; pop args
           Applicexit:
           " in 
-          with_proc ^ assembly_check
-
+          with_proc ^ assembly_check 
+(* 
   | ApplicTP'  (proc , arg_list) ->
           let rev = List.rev arg_list in
           let args_text = gen_map rev "push rax \n" consts fvars in
@@ -396,11 +407,11 @@ find_param:
           ApplicTPexit:
           " in 
           with_proc ^ assembly_check
-
+*)
   |_->""
   
 
-  and gen_map list code_to_write consts fvars ext_env = 
+  and gen_map list code_to_write consts fvars env = 
   let mapped = List.map (fun(elem)-> (generate_handle consts fvars elem env) ^ code_to_write) list in
   (list_to_string mapped) ;; 
 
