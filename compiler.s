@@ -245,7 +245,10 @@ write_sob_float:
 	movq xmm0, rsi
 	mov rdi, .float_format_string
 	mov rax, 1
+	mov rsi, rsp
+	and rsp, -16
 	call printf
+	mov rsp, rsi
 
 	leave
 	ret
@@ -259,6 +262,7 @@ write_sob_char:
 	mov rbp, rsp
 
 	CHAR_VAL rsi, rsi
+	and rsi, 255
 
 	cmp rsi, CHAR_NUL
 	je .Lnul
