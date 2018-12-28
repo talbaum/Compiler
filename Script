@@ -2,112 +2,41 @@ utop
 #use "semantic-analyser.ml";;
 open Semantics;;
 test "(define x 1)";;
+ -------------------------------------------------------------------------------
+
+ let loop =  "
+    push rdx
+    mov rdx ,rbx  ;; save the original num of params
+    loop1:
+    mov rcx ,qword[8 * rbx]  ;;gets to the relevent i'th place insdide extenv[0][i]
+    mov rcx, qword[rsp+rcx] ;; the actual address of extenv[0][i]
+    jmp find_param
+    after_find_param:
+    mov rcx, qword[rdi] ;;the relevant param will be inside rdi . we will mov it to extenv[0][i] in rcx
+    dec rbx 
+    jnz loop1  ;;continue the looop
+    ;pop rsp
+    pop rbx
+    pop rcx
+    pop rdi
+    pop rdx
+     "in
+    let find_param = "
+find_param:
+  cmp rdx, rbx ;; check which param were talking about, rdx is n and rbx is i
+  je found
+  dec rdx
+  jnz find_param
+  
+  found:
+    mov rdi , qword[rbx * 8]     ;;when we find the arguemnt we mov its value to rdi.
+    mov rdi , qword[rsi + rdi ] ;; takes params[i] into rdi
+    jmp after_find_param
+ " in
 
 
-
-#use "semantic-analyser.ml";;
-
-module type CODE_GEN = sig
-  val make_consts_tbl : expr' list -> (constant * int * string) list
-  (*  val make_consts_tbl : expr' list -> (constant * ('a * string) list*)
-  val make_fvars_tbl : expr' list -> (string * int) list
-  (*  val make_fvars_tbl : expr' list -> (string * 'a) list *)
-  val generate : (constant * int * string) list -> (string * int) list -> expr' -> string
-end;;
-
-module Code_Gen : CODE_GEN = struct
-
-(*---------------------------- Constant var table -----------------------------*)
-
-  let list_to_string s =
-    String.concat "" (List.map (fun str ->  str) s);;
-
-  let rec collect_all_sexprs asts sexpr_list = 
-  (match asts with
-  | [] -> []
-  |(ast::others) -> 
-  (match ast with
-  | Const'(e) -> [sexpr_list] @ [e] @ (collect_all_sexprs others sexpr_list) (* verify order *)
-  | If' (testExp , thenExp , elseExp) -> collect_all_sexprs [testExp] sexpr_list @ collect_all_sexprs [thenExp] sexpr_list @ collect_all_sexprs [elseExp] sexpr_list @ (collect_all_sexprs others sexpr_list) 
-  | Seq'(expr_list) ->  collect_all_sexprs expr_list sexpr_list @ (collect_all_sexprs others sexpr_list)  
-  | Set'(name , value) -> collect_all_sexprs [name] sexpr_list @ collect_all_sexprs [value] sexpr_list @ (collect_all_sexprs others sexpr_list) 
-  | Def' (name , value) -> collect_all_sexprs [name] sexpr_list @ collect_all_sexprs [value] sexpr_list @ (collect_all_sexprs others sexpr_list) 
-  | Or'(expr_list) -> collect_all_sexprs  expr_list sexpr_list @ (collect_all_sexprs others sexpr_list) 
-  | LambdaSimple' (args, body) ->  collect_all_sexprs [body] sexpr_list @ (collect_all_sexprs others sexpr_list) 
-  | LambdaOpt' (args, vs, body) -> collect_all_sexprs [body] sexpr_list @ (collect_all_sexprs others sexpr_list) 
-  | Applic' (function_name , args) -> collect_all_sexprs [function_name] sexpr_list @ collect_all_sexprs args sexpr_list @ (collect_all_sexprs others sexpr_list) 
-  | ApplicTP' (function_name , args) -> collect_all_sexprs [function_name] sexpr_list @ collect_all_sexprs args sexpr_list @ (collect_all_sexprs others sexpr_list) 
-  | Box' (e)-> type_of_var [e] sexpr_list @ (collect_all_sexprs others sexpr_list) 
-  | BoxGet' (e) -> type_of_var [e] sexpr_list @ (collect_all_sexprs others sexpr_list) 
-  | BoxSet'(e,p) ->  type_of_var [e] sexpr_list @ collect_all_sexprs [p] sexpr_list @ (collect_all_sexprs others sexpr_list) 
-  | Var'(e) -> type_of_var [e] sexpr_list @ (collect_all_sexprs others sexpr_list) ))
-
-
-  and type_of_var e sexpr_list= match e with
-  | [VarBound(name, major,minor)] -> [sexpr_list] @ [Sexpr(String(name))] 
-  | [VarParam(name, minor)] -> [sexpr_list] @ [Sexpr(String(name))] 
-  | [VarFree(name)] -> [sexpr_list] @ [Sexpr(String(name))] 
-  | _ -> []
-;;
-
-(* let tmp element copy_list = 
-let rev_list = List.rev copy_list in
-let without_first_elem = List.remove_assoc element rev_list in
-let list_without_first_elem_good_order = List.rev without_first_elem in 
-if List.length list_without_first_elem_good_order = List.length copy_list then element else Nil
-
-let rec remove_duplicate list = let copy_list = list in
-match list with
-|[] -> Nil
-|[hd,tl]-> tmp hd copy_list @ [remove_duplicate (List.tl copy_list)]
-;; *)
-
-let is_in_list elem list = if List.mem elem list then list else elem :: list
-let remove_duplicate list = List.fold_right is_in_list list []
-
-
-let isEqual_constant e1 e2=
-  match e1, e2 with
-  |  Void,  Void -> true
-  | (Sexpr s1), (Sexpr s2) -> sexpr_eq s1 s2
-  | _-> false;;
-
-let find_element e constant_table = 
-  let find_me = (match e with 
-  | Symbol(x) -> String(x)
-  | rest -> rest) in
-  let offset_list = List.map (fun(tuple)-> 
-          let (sexpr,offset,_) = tuple in
-          if isEqual_constant ((Sexpr(find_me))) sexpr = true then offset else -1) constant_table in
-  let ans = List.filter (fun(x) -> x!= -1) offset_list in 
-  match ans with
-  | [num] -> string_of_int num
-  | _ -> raise X_not_yet_implemented
- ;;
-
-
-let rec build_topolig_list constant_set = 
-(* List.fold_right handle_single_sexpr sexpr_set *)
-List.map handle_single_constant constant_set
-
-and handle_single_constant constants = match constants with
-  | Sexpr(Symbol(str)) as sym -> [Sexpr(String(str))] @ [sym] 
-  | Sexpr(Pair (hd,tail)) as p -> ([Sexpr(hd)] @ [Sexpr(tail)] @ [p]) @ (handle_single_constant (Sexpr(hd))) @ (handle_single_constant (Sexpr (tail))) (* verify order *)
-  | Sexpr(Vector(sexpr_list)) as v -> handle_vector(sexpr_list) @ [v]
-  | Void -> []
-  | Sexpr(rest) as const_rest -> [const_rest]
-
-and handle_vector sexpr_list = 
-(* List.fold_right handle_single_vector_elem sexpr_list *)
-let tmp = List.map (fun(e) -> handle_single_constant (Sexpr(e)) )sexpr_list in
-List.flatten tmp;;
-
-let get_size elem = match elem with
-  | Sexpr(Nil) -> 1
-  | Void -> 1
-  | Sexpr(Bool(e)) -> 2
-  | Sexpr(Char(e)) -> 2
-  | Sexpr(Number(e)) -> 9
+ -------------------------------------------------------------------------------
+expr(Number(e)) -> 9
   | Sexpr(Symbol (e)) -> 9 
   | Sexpr(String (e)) -> String.length e + 9
   | Sexpr(Pair (car,cdr)) -> 17
