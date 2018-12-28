@@ -228,7 +228,14 @@ let rec get_param_names_as_string params = match params with
 | [] -> ""
 | (hd::tl) -> hd ^ (get_param_names_as_string tl);;
 
-   let rec generate_handle consts fvars e env = match e with
+let counter : int ref = ref 0;;
+ let add_one  counter = 
+ let getCounter = !counter in
+ let () = incr counter in 
+    getCounter;; 
+
+
+   let rec generate_handle consts fvars e env counter =match e with
   | Const'(x)-> let address = addressInConstTable consts x in
                 "mov rax, const_tbl+" ^ string_of_int address
   | Var'(VarFree(str)) -> let address = addressInFvarTable fvars str in
@@ -238,43 +245,43 @@ let rec get_param_names_as_string params = match params with
   mov rax, qword [rax + 8 ∗ major]
   mov rax, qword [rax + 8 ∗ minor]"
   (* | Box' of var *) (*  /////////////// check if need to implement*)
-  | BoxGet'(((v)) as vari)-> (generate_handle consts fvars (Var'(vari)) env ) ^ "\n mov rax, qword [rax]"
+  | BoxGet'(((v)) as vari)-> (generate_handle consts fvars (Var'(vari)) env counter ) ^ "\n mov rax, qword [rax]"
   | BoxSet'((v) as vari ,value) -> 
-    let  value_text =(generate_handle consts fvars value env ) ^ "\n push rax" in
-    let var_text = (generate_handle consts fvars  (Var'(vari)) env) ^ " \n pop qword [rax]
+    let  value_text =(generate_handle consts fvars value env counter ) ^ "\n push rax" in
+    let var_text = (generate_handle consts fvars  (Var'(vari)) env counter) ^ " \n pop qword [rax]
     mov rax, SOB_VOID_ADDRESS" in
     value_text ^ var_text
-  | If'(test,dit,dif)->
-    let test_text= (generate_handle consts fvars test env ) ^ "\n cmp rax, SOB_FALSE_ADDRESS
-      je Lelse \n" in
-    let dit_text = (generate_handle consts fvars dit env) ^ "\n jmp Lexit
-      Lelse: \n" in 
-    let dif_text = (generate_handle consts fvars dif env) ^ "\n Lexit:" in
+  | If'(test,dit,dif)->  let () = incr counter in 
+    let test_text= (generate_handle consts fvars test env counter ) ^ "\n cmp rax, SOB_FALSE_ADDRESS
+      je Lelse"^ string_of_int(!counter) ^" \n" in
+    let dit_text = (generate_handle consts fvars dit env counter) ^ "\n jmp Lexit"^ string_of_int(!counter) ^"
+      Lelse"^ string_of_int(!counter) ^": \n" in 
+    let dif_text = (generate_handle consts fvars dif env counter) ^ "\n Lexit"^ string_of_int(!counter) ^":" in
     test_text ^ dit_text ^ dif_text 
-  | Seq' (list) ->(gen_map list "\n" consts fvars env)
-  | Set'(Var'(VarParam(_, minor)),value)-> (generate_handle consts fvars value env) ^ "
+  | Seq' (list) ->(gen_map list "\n" consts fvars env counter)
+  | Set'(Var'(VarParam(_, minor)),value)-> (generate_handle consts fvars value env counter) ^ "
   mov qword [rbp + 8 ∗ (4 + minor)], rax
   mov rax, SOB_VOID_ADDRESS"
-  | Set'(Var'(VarBound (str ,major, minor)),value)->(generate_handle consts fvars value env) ^
+  | Set'(Var'(VarBound (str ,major, minor)),value)->(generate_handle consts fvars value env counter)  ^
   "mov rbx, qword [rbp + 8 ∗ 2]
   mov rbx, qword [rbx + 8 ∗ major]
   mov qword [rbx + 8 ∗ minor], rax
   mov rax, SOB_VOID_ADDRESS"
   | Set'(Var'(VarFree(str)),value)->
-  let value_text = (generate_handle consts fvars value env) in
+  let value_text = (generate_handle consts fvars value env counter) in
   let address = addressInFvarTable fvars str in
   value_text^"\n mov qword [fvar_tbl+" ^ string_of_int address ^"*WORD_SIZE], rax
   mov rax, SOB_VOID_ADDRESS"
   | Def'(Var'(VarFree(str)) , value)-> 
-  let value_text = (generate_handle consts fvars value env) in
+  let value_text = (generate_handle consts fvars value env counter) in
   let address =  addressInFvarTable fvars str in
   value_text ^ "\n" ^
    "mov [fvar_tbl+" ^ (string_of_int address) ^"*WORD_SIZE], rax \n"^ "mov rax, SOB_VOID_ADDRESS \n"
 
-  | Or'(list)-> ((gen_map list "
+  | Or'(list)-> ((gen_map list ("
   cmp rax, SOB_FALSE_ADDRESS
-  jne Lexit\n" consts fvars env) ^ "
-  Lexit:" )
+  jne Lexit"^ string_of_int(!counter) ^"\n") consts fvars env counter) ^ "
+  Lexit"^ string_of_int(!counter) ^":" )
   | LambdaSimple' (params , body) ->
       let old_env_size = (List.length env) in
       let ext_env_size = old_env_size + 1 in
@@ -292,7 +299,8 @@ let rec get_param_names_as_string params = match params with
       mov rdx ,rcx * 8 ;;get the j'th element in ext env
       mov rdx ,rax+rdx ;; get to its address from the start of the vector
       mov rsi ,rbx * 8 ;;get the i'th element in env
-      mov rsi, rsi + *** address of env ** ;; get to its address from the start of the vector - missing the address of the env vector
+      mov rsi, rsi +  rbp ;; get to its address from the start of the vector -paz say that its rbp + 16
+      mov rsi , rsi + 16 
       mov qword[rdx], qword[rsi] ;; assignment to he new vector
       dec rcx ;;contonue the loop
       dec rbx
@@ -312,7 +320,7 @@ let rec get_param_names_as_string params = match params with
     mov rbx, %d" params_len  in
 let init_params = Printf.sprintf "
   push rsi
-  MALLOC rsi %s"  (get_param_names_as_string params) in (* address of the params*)
+  mov rsi rbp + 32"   in (* address of the params according to class material*)
     let loop =  "
     push rdx
     mov rdx ,rbx  ;; save the original num of params
@@ -359,7 +367,7 @@ find_param:
     ret
 
   Lcont:
- " (generate_handle consts fvars body (env@params))in 
+ " (generate_handle consts fvars body (env@params) counter) in 
 
       ext_env_malloc ^ init_for ^loop_body ^ext_env_zero_elem_malloc ^ init ^ init_params ^  loop ^ find_param ^ create_closure
 
@@ -369,9 +377,9 @@ find_param:
  (* | LambdaOpt' of string list * string * expr' *)
   | Applic' (proc , arg_list) -> 
           let rev = List.rev arg_list in
-          let args_text = gen_map rev "\n push rax \n" consts fvars env in
+          let args_text = gen_map rev "\n push rax \n" consts fvars env  counter in
           let post_args = args_text ^ "\n push "^ (string_of_int (List.length arg_list))^" \n" in
-          let proc_text = generate_handle consts fvars proc env in
+          let proc_text = generate_handle consts fvars proc env counter in
           let with_proc = post_args ^ proc_text in
           let assembly_check = 
           "
@@ -389,9 +397,9 @@ find_param:
 (* 
   | ApplicTP'  (proc , arg_list) ->
           let rev = List.rev arg_list in
-          let args_text = gen_map rev "push rax \n" consts fvars in
+          let args_text = gen_map rev "push rax \n" consts fvars counter in
           let post_args = args_text ^ "push n \n" in
-          let proc_text = generate_handle consts fvars proc env in
+          let proc_text = generate_handle consts fvars proc env  counterin
           let with_proc = post_args ^ proc_text in
           let assembly_check = 
           "
@@ -411,11 +419,11 @@ find_param:
   |_->""
   
 
-  and gen_map list code_to_write consts fvars env = 
-  let mapped = List.map (fun(elem)-> (generate_handle consts fvars elem env) ^ code_to_write) list in
+  and gen_map list code_to_write consts fvars env counter = 
+  let mapped = List.map (fun(elem)-> (generate_handle consts fvars elem env counter) ^ code_to_write) list in
   (list_to_string mapped) ;; 
 
-   let generate consts fvars e = generate_handle consts fvars e [] ;;
+   let generate consts fvars e = generate_handle consts fvars e [] counter ;;
 
 end;;
 (* 
