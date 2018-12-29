@@ -3,27 +3,66 @@ utop
 open Semantics;;
 test "(define x 1)";;
  -------------------------------------------------------------------------------
-| Applic' (proc , arg_list) -> 
-          let rev = List.rev arg_list in
-          let args_text = gen_map rev "\n push rax \n" consts fvars env  counter in
-          let post_args = args_text ^ "\n push "^ (string_of_int (List.length arg_list))^" \n" in
-          let proc_text = generate_handle consts fvars proc env counter in
-          let with_proc = post_args ^ proc_text in
-          let assembly_check = 
-          "\n 
-          cmp byte[rax],  T_CLOSURE
-          je Applicexit
-          ret
-          Applicexit:
-          CLOSURE_ENV rcx, rax
-          push rcx
-          CLOSURE_CODE rax, rax
-          call rax
-          add rsp, 8*1         ; pop env
-          pop rbx ; pop arg count
-          shl rbx, 3 ; rbx = rbx * 8
-          add rsp, rbx; pop args
-          
-          " in
-          with_proc ^ assembly_check 
+ 
+ 
+ let primitive_names_to_labels = 
+  ["boolean?", "is_boolean"; "float?", "is_float"; "integer?", "is_integer"; "pair?", "is_pair";
+   "null?", "is_null"; "char?", "is_char"; "vector?", "is_vector"; "string?", "is_string";
+   "procedure?", "is_procedure"; "symbol?", "is_symbol"; "string-length", "string_length";
+   "string-ref", "string_ref"; "string-set!", "string_set"; "make-string", "make_string";
+   "vector-length", "vector_length"; "vector-ref", "vector_ref"; "vector-set!", "vector_set";
+   "make-vector", "make_vector"; "symbol->string", "symbol_to_string"; 
+   "char->integer", "char_to_integer"; "integer->char", "integer_to_char"; "eq?", "is_eq";
+   "+", "bin_add"; "*", "bin_mul"; "-", "bin_sub"; "/", "bin_div"; "<", "bin_lt"; "=", "bin_equ";
+   "car","car_nasm"; "cdr","cdr_nasm"; "set-car!","set_car"; "set-cdr!","set_cdr"; "cons","cons_nasm";
+   "apply","apply_nasm"
+(* you can add yours here *)];;
+ 
+ 
+ 
+let epilogue = "
+; returns the car pointer of the pair SOB which in %1
+%macro car_nasm 1
+  cmp byte[%1] , T_PAIR
+  jne invalid
+  mov rax, qword[%1+1]
+%endmacro
 
+; returns the cdr pointer of the pair SOB which in %1
+%macro cdr_nasm 1
+  cmp byte[%1] , T_PAIR
+  jne invalid
+  mov rax, qword[%1+1+8]
+%endmacro
+
+; sets the car pointer of the pair SOB which in %1 to be %2
+%macro set_car 2
+  cmp byte[%1] , T_PAIR
+  jne invalid
+  mov qword[%1+1], %2
+%endmacro
+
+; sets the cdr pointer of the pair SOB which in %1 to be %2
+%macro set_cdr 2
+  cmp byte[%1] , T_PAIR
+  jne invalid
+  mov qword[%1+1+8], %2
+%endmacro
+
+; create a SOB of pair with %1 as car and %2 as cdr into register %3
+%macro cons_nasm 3
+  MAKE_PAIR %3 %1 %2
+%endmacro
+
+; TODO 
+%macro apply_nasm 2-*
+  %rep %0   ;; %0 is num_of_params maybe do (%0 -1)
+      ;;TODO: body of apply - need to push all args to stack and then call the proc at %1
+%rotate 1
+%endrep
+call %1
+%endmacro
+
+invalid:
+  ret
+";;
