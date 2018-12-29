@@ -61,7 +61,7 @@
 %define CLOSURE_CODE CDR
 
 %define PVAR(n) qword [rbp+(4+n)*WORD_SIZE]
-
+	
 %macro MAKE_LITERAL 2
 							; Make a literal of type %1
 							; followed by the definition %2
@@ -245,6 +245,7 @@ write_sob_float:
 	movq xmm0, rsi
 	mov rdi, .float_format_string
 	mov rax, 1
+
 	mov rsi, rsp
 	and rsp, -16
 	call printf
@@ -759,4 +760,3 @@ write_sob_if_not_void:
 section .data
 .newline:
 	db CHAR_NEWLINE, 0
-
