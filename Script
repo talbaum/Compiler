@@ -2,6 +2,15 @@ utop
 #use "semantic-analyser.ml";;
 open Semantics;;
 test "(define x 1)";;
+
+-----------------------------------------------
+
+set disassembly-flavor intel
+set tui border-kind acs
+layout asm
+tui enable
+tui reg general
+
  -------------------------------------------------------------------------------
  
  
