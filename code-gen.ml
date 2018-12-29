@@ -1,3 +1,4 @@
+
 #use "semantic-analyser.ml";;
 
 module type CODE_GEN = sig
@@ -203,12 +204,18 @@ init_basics @ list;;
   let no_dups_list = remove_dups_wrapper add_basics_to_const_list in
   create_const_table no_dups_list [];; 
   
+
+  let init_fvars =  [("boolean?",0);("float?",1);("integer?",2);("pair?",3);("null?",4);("char?",5);("vector?",6);("string?",7);("procedure?",8);("symbol?",9);( "string-length",10);("string-ref",11);("string-set!",12);("make-string",13);("vector-length",14);("vector-ref",15);("vector-set!",16);("make-vector",17);("symbol->string",18);("char->integer",19);("integer->char",20);("eq?",21);("+",22);("*",23);("-",24);("/",25);("<",26);("=",27);("car",28); ("cdr",29); ("set-car!",30);("set-cdr!",31);("cons",32);("apply",33)];;
+
+
   let make_fvars_tbl asts = 
   let fvar_list = collect_all_fvars asts [] in
   let fvar_set = remove_duplicate fvar_list in 
-  create_fvar_table fvar_set 0
+  init_fvars @ (create_fvar_table fvar_set 34)
   ;;
     
+
+
 
 let rec addressInConstTable constant_table find_me= match constant_table with
 | [] -> 0
@@ -231,29 +238,18 @@ let rec get_param_names_as_string params = match params with
  let add_one  counter = 
  let getCounter = !counter in
  let () = incr counter in 
-    getCounter;; 
- *)
+    getCounter;;  *)
+(*let counter=0;*)
 
    let rec generate_handle consts fvars e env counter =match e with
   | Const'(x)-> let address = addressInConstTable consts x in
                 "mov rax, const_tbl+" ^ string_of_int address
   | Var'(VarFree(str)) -> let address = addressInFvarTable fvars str in
                 "mov rax, qword [fvar_tbl+" ^ string_of_int address ^"*WORD_SIZE]"
-  | Var'(VarParam (str , minor)) -> Printf.sprintf "
-  push rcx
-  mov qword[rcx] ,(4 + %d)" minor ^ "
-  mov rcx, qword[8*rcx]
-  mov rcx, qword[rbp + rcx]
-  mov rax, qword [rcx]
-  pop rcx" 
-  | Var'(VarBound (str ,major, minor)) ->Printf.sprintf"
-  push rcx
-  mov rax, qword [rbp + 16]
-  mov qword[rcx], 8 ∗ %d" major ^Printf.sprintf"
-  mov rax, qword [rax + rcx]" ^ Printf.sprintf"
-  mov qword[rcx], 8 ∗ %d" minor ^"
-  mov rax, qword [rax + rcx]
-  pop rcx" 
+  | Var'(VarParam (str , minor)) -> "mov rax, qword [rbp + 8 ∗ (4 + minor)]"
+  | Var'(VarBound (str ,major, minor)) ->"mov rax, qword [rbp + 8 ∗ 2]
+  mov rax, qword [rax + 8 ∗ major]
+  mov rax, qword [rax + 8 ∗ minor]"
   (* | Box' of var *) (*  /////////////// check if need to implement*)
   | BoxGet'(((v)) as vari)-> (generate_handle consts fvars (Var'(vari)) env counter ) ^ "\n mov rax, qword [rax]"
   | BoxSet'((v) as vari ,value) -> 
@@ -295,7 +291,7 @@ let rec get_param_names_as_string params = match params with
   | LambdaSimple' (params , body) ->
       let old_env_size = (List.length env) in
       let ext_env_size = old_env_size + 1 in
-      let ext_env_malloc = Printf.sprintf "\n push rax \n MALLOC rax , %d" ext_env_size in
+      let ext_env_malloc = Printf.sprintf " pushad \n push rax \n MALLOC rax %d" ext_env_size in
       let init_for = Printf.sprintf "
       push rbx  ;; i
       push rcx  ;; j
@@ -305,20 +301,16 @@ let rec get_param_names_as_string params = match params with
      Printf.sprintf" 
       mov	rbx, %d" old_env_size in (* init i with n*)
       let loop_body = Printf.sprintf "
-      cmp rbx, 0
-      je clean_reg
       loop:
-      mov rdx ,qword[rcx * 8] ;;get the j'th element in ext env
-      add rdx ,qword[rax] ;; get to its address from the start of the vector
-      mov rsi ,qword[rbx * 8] ;;get the i'th element in env
-      add rsi, qword[rbp] ;; get to its address from the start of the vector -paz say that its rbp + 16
-      add rsi , 16
-      mov rdx, qword[rsi] ;; assignment to he new vector
+      mov rdx ,rcx * 8 ;;get the j'th element in ext env
+      mov rdx ,rax+rdx ;; get to its address from the start of the vector
+      mov rsi ,rbx * 8 ;;get the i'th element in env
+      mov rsi, rsi +  rbp ;; get to its address from the start of the vector -paz say that its rbp + 16
+      mov rsi , rsi + 16 
+      mov qword[rdx], qword[rsi] ;; assignment to he new vector
       dec rcx ;;contonue the loop
       dec rbx
       jnz loop
-
-
   clean_reg:
    pop rbx
    pop rcx
@@ -326,41 +318,40 @@ let rec get_param_names_as_string params = match params with
    pop rsi
     " in
     let params_len = (List.length params) in 
-    let ext_env_zero_elem_malloc = Printf.sprintf " push rsp \n MALLOC rsp , %d" (params_len * 8) in (* get addres of vector in extenv[0]*)
+    let ext_env_zero_elem_malloc = Printf.sprintf " push rsp \n MALLOC rsp %d" (params_len * 8) in (* get addres of vector in extenv[0]*)
    let init =Printf.sprintf "
     push rbx ;;length of params
     push rcx ;; pointer i in extenv [0][i]
     mov rbx, %d" params_len  in
 let init_params = Printf.sprintf "
   push rsi
-  mov rsi ,qword[rbp + 32]"   in (* address of the params according to class material*)
+  mov rsi rbp + 32"   in (* address of the params according to class material*)
     let loop =  "
     push rdx
     mov rdx ,rbx  ;; save the original num of params
     loop1:
-    mov rcx ,qword[rbx]  ;;gets to the relevent i'th place insdide extenv[0][i]
-    mov rcx, rcx *8
-    mov rcx, qword[rsp+rcx] ;; the actual address of extenv[0][i]
+    mov rcx ,8 * rbx  ;;gets to the relevent i'th place insdide extenv[0][i]
+    mov rcx, rsp+rcx ;; the actual address of extenv[0][i]
     jmp find_param
     after_find_param:
-    mov rcx, qword[rdi] ;;the relevant param will be inside rdi . we will mov it to extenv[0][i] in rcx
+    mov qword[rcx] rdi ;;the relevant param will be inside rdi . we will mov it to extenv[0][i] in rcx
     dec rbx 
     jnz loop1  ;;continue the looop
-    ;pop rsp
+    pop rsp
     pop rbx
     pop rcx
     pop rdi
     pop rdx
-     "in
+   "in
     let find_param = "
 find_param:
-  cmp rdx, rbx ;; check which param were talking about, rdx is n and rbx is i
+  cmp rdx rbx ;; check which param were talking about, rdx is n and rbx is i
   je found
   dec rdx
   jnz find_param
   
   found:
-    mov rdi , qword[rbx * 8]     ;;when we find the arguemnt we mov its value to rdi.
+    mov rdi , rbx * 8     ;;when we find the arguemnt we mov its value to rdi.
     mov rdi , qword[rsi + rdi ] ;; takes params[i] into rdi
     jmp after_find_param
  " in
@@ -368,6 +359,7 @@ find_param:
    push rbx
    mov rbx, rax   ;;save the address of extenv into rbx 
    MAKE_CLOSURE (rax, rbx ,Lcode ) ;; create closure , results in rax, ExtEnv is in rbx, Lcode is the code to do
+   popad
    jmp Lcode 
   Lcode:
     push rbp
@@ -385,23 +377,26 @@ find_param:
 
  (* | LambdaOpt' of string list * string * expr' *)
   | Applic' (proc , arg_list) -> 
+          let counter=counter+1 in
           let rev = List.rev arg_list in
           let args_text = gen_map rev "\n push rax \n" consts fvars env  counter in
           let post_args = args_text ^ "\n push "^ (string_of_int (List.length arg_list))^" \n" in
           let proc_text = generate_handle consts fvars proc env counter in
           let with_proc = post_args ^ proc_text in
           let assembly_check = 
-          "
-          cmp byte [rax], T_CLOSURE
-          jne Applicexit
-          push qword [rax+1]
-          call qword [rax+9]
+          "\n 
+          cmp byte[rax],  T_CLOSURE
+          jne invalid     
+          CLOSURE_ENV rbx, rax
+          push rbx
+          CLOSURE_CODE rbx, rax
+          call rbx
           add rsp, 8*1         ; pop env
           pop rbx ; pop arg count
           shl rbx, 3 ; rbx = rbx * 8
           add rsp, rbx; pop args
-          Applicexit:
-          " in 
+          
+          " in
           with_proc ^ assembly_check 
 (* 
   | ApplicTP'  (proc , arg_list) ->
