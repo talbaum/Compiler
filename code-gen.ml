@@ -246,11 +246,14 @@ let rec get_param_names_as_string params = match params with
                 "mov rax, const_tbl+" ^ string_of_int address
   | Var'(VarFree(str)) -> let address = addressInFvarTable fvars str in
                 "mov rax, qword [fvar_tbl+" ^ string_of_int address ^"*WORD_SIZE]"
-  | Var'(VarParam (str , minor)) -> "mov rax, qword [rbp + 8 ∗ (4 + minor)]"
+  | Var'(VarParam (str , minor)) -> "mov rax, qword [rbp + (4 + "^string_of_int minor^")*WORD_SIZE]"
   | Var'(VarBound (str ,major, minor)) ->"mov rax, qword [rbp + 8 ∗ 2]
-  mov rax, qword [rax + 8 ∗ major]
-  mov rax, qword [rax + 8 ∗ minor]"
-  (* | Box' of var *) (*  /////////////// check if need to implement*)
+  mov rax, qword [rax + 8 ∗ "^string_of_int major^"]
+  mov rax, qword [rax + 8 ∗ "^string_of_int minor^"]"
+  (* | Box' of var *) (*  /////////////// check if need to implement generate to var parmam inside the box
+  and then it comes back in rax, so after u didi genreate append malloc array (size 1 = size 8)  
+  put the address inside the array
+   *)
   | BoxGet'(((v)) as vari)-> (generate_handle consts fvars (Var'(vari)) env counter ) ^ "\n mov rax, qword [rax]"
   | BoxSet'((v) as vari ,value) -> 
     let  value_text =(generate_handle consts fvars value env counter ) ^ "\n push rax" in
@@ -266,12 +269,12 @@ let rec get_param_names_as_string params = match params with
     test_text ^ dit_text ^ dif_text 
   | Seq' (list) ->(gen_map list "\n" consts fvars env counter)
   | Set'(Var'(VarParam(_, minor)),value)-> (generate_handle consts fvars value env counter) ^ "
-  mov qword [rbp + 8 ∗ (4 + minor)], rax
+  mov qword [rbp + 8 ∗ (4 + "^string_of_int minor^")], rax
   mov rax, SOB_VOID_ADDRESS"
   | Set'(Var'(VarBound (str ,major, minor)),value)->(generate_handle consts fvars value env counter)  ^
   "mov rbx, qword [rbp + 8 ∗ 2]
-  mov rbx, qword [rbx + 8 ∗ major]
-  mov qword [rbx + 8 ∗ minor], rax
+  mov rbx, qword [rbx + 8 ∗"^string_of_int  major^"]
+  mov qword [rbx + 8 ∗"^string_of_int  minor^"], rax
   mov rax, SOB_VOID_ADDRESS"
   | Set'(Var'(VarFree(str)),value)->
   let value_text = (generate_handle consts fvars value env counter) in
@@ -289,89 +292,61 @@ let rec get_param_names_as_string params = match params with
   jne LexitOr\n") consts fvars env counter) ^ "
   LexitOr:" )
   | LambdaSimple' (params , body) ->
-      let old_env_size = (List.length env) in
-      let ext_env_size = old_env_size + 1 in
-      let ext_env_malloc = Printf.sprintf " pushad \n push rax \n MALLOC rax %d" ext_env_size in
-      let init_for = Printf.sprintf "
-      push rbx  ;; i
-      push rcx  ;; j
-      push rdx  ;; address of extenv[j]
-      push rsi ;; address of env[i]
-      mov rcx ,%d" ext_env_size ^ (* init j with n+1*)
-     Printf.sprintf" 
-      mov	rbx, %d" old_env_size in (* init i with n*)
-      let loop_body = Printf.sprintf "
-      loop:
-      mov rdx ,rcx * 8 ;;get the j'th element in ext env
-      mov rdx ,rax+rdx ;; get to its address from the start of the vector
-      mov rsi ,rbx * 8 ;;get the i'th element in env
-      mov rsi, rsi +  rbp ;; get to its address from the start of the vector -paz say that its rbp + 16
-      mov rsi , rsi + 16 
-      mov qword[rdx], qword[rsi] ;; assignment to he new vector
-      dec rcx ;;contonue the loop
-      dec rbx
-      jnz loop
-  clean_reg:
-   pop rbx
-   pop rcx
-   pop rdx
-   pop rsi
-    " in
-    let params_len = (List.length params) in 
-    let ext_env_zero_elem_malloc = Printf.sprintf " push rsp \n MALLOC rsp %d" (params_len * 8) in (* get addres of vector in extenv[0]*)
-   let init =Printf.sprintf "
-    push rbx ;;length of params
-    push rcx ;; pointer i in extenv [0][i]
-    mov rbx, %d" params_len  in
-let init_params = Printf.sprintf "
-  push rsi
-  mov rsi rbp + 32"   in (* address of the params according to class material*)
-    let loop =  "
-    push rdx
-    mov rdx ,rbx  ;; save the original num of params
-    loop1:
-    mov rcx ,8 * rbx  ;;gets to the relevent i'th place insdide extenv[0][i]
-    mov rcx, rsp+rcx ;; the actual address of extenv[0][i]
-    jmp find_param
-    after_find_param:
-    mov qword[rcx] rdi ;;the relevant param will be inside rdi . we will mov it to extenv[0][i] in rcx
-    dec rbx 
-    jnz loop1  ;;continue the looop
-    pop rsp
-    pop rbx
-    pop rcx
-    pop rdi
-    pop rdx
-   "in
-    let find_param = "
-find_param:
-  cmp rdx rbx ;; check which param were talking about, rdx is n and rbx is i
-  je found
-  dec rdx
-  jnz find_param
-  
-  found:
-    mov rdi , rbx * 8     ;;when we find the arguemnt we mov its value to rdi.
-    mov rdi , qword[rsi + rdi ] ;; takes params[i] into rdi
-    jmp after_find_param
- " in
- let create_closure =Printf.sprintf " 
-   push rbx
-   mov rbx, rax   ;;save the address of extenv into rbx 
-   MAKE_CLOSURE (rax, rbx ,Lcode ) ;; create closure , results in rax, ExtEnv is in rbx, Lcode is the code to do
-   popad
-   jmp Lcode 
-  Lcode:
-    push rbp
-    mov rbp, rsp
-    %s
-    leave
-    ret
-  Lcont:
- " (generate_handle consts fvars body (env@params) counter) in 
+      let lambda_body       = generate_handle consts fvars body (env + 1) counter  in 
+      let new_env_size      = string_of_int ((env + 1) * 8) in
+      let old_env_size      = string_of_int env in
+      let parmas_len        =  string_of_int(List.length params) in 
+"
+chin:
+mov r8, " ^parmas_len^" 	              ;get number of args [rbp+3*WORD_SIZE]
+mov r9, r8                                ;r9 <- num_of_args for loop of extending env
+shl r8, 3				                          ;size to allocate <- pointer size * num of args
+MALLOC r8, r8                             ;r8 <- new_vector
 
-      ext_env_malloc ^ init_for ^loop_body ^ext_env_zero_elem_malloc ^ init ^ init_params ^  loop ^ find_param ^ create_closure
+mov r10, 0                                ;r10 <- index of current param
 
+add_params_to_env:                    ;copying args to new env
+cmp r10, r9                               ;r10 = num_of_args?
+je finish_params                      ;true -> jump to next action
+mov r11,PVAR(r10)                         ;r11 <- current param
+mov [r8+r10*WORD_SIZE], r11               ;new_vector[r10] <- r11
+inc r10                                  ;r10 <- next param
+jmp add_params_to_env
+
+finish_params:                        ;finished copying args to new_vector
+
+mov r10, "^new_env_size^"
+MALLOC r10, r10                           ;r10 <- new env with size = (env_size + 1) * 8
+mov [r10], r8                             ;r10[0] <- pointer to new_vector
+
+mov rsi, 0                                ;rsi = index of major in old env starting from 0
+mov rdi, 1                                ;rdi = index of major in new_env starting from 1
+copy_old_env:                         ;Copying old env to new env
+cmp rsi, " ^old_env_size^ "               ;rsi = size of old env?
+je  finished_new_env                  ;true -> go to next action
+
+mov r9, [rbp + WORD_SIZE*2]               ;r9 <- location of old_env in stack
+mov r9, [r9 + rsi*WORD_SIZE]              ;r9 <- old_env[rsi] (pointer current vector)
+mov [r10+rdi*WORD_SIZE], r9               ;new_env[rdi] <- old_env[rsi]
+
+inc rsi                                   ;inc index of major in old_env
+inc rdi                                   ;inc index of major in new_env
+
+jmp copy_old_env                      ;copy next vector from old_env to new_env
+
+finished_new_env:                     ;finished creating new_env
+
+MAKE_CLOSURE (rax, r10,  lambda_code) ;create a new closure, with new_env at r10, body at label address
+jmp lambda_end                        ;Skip lambda body. will only execute when called
+
+lambda_code:
+push rbp                                  
+mov rbp,rsp
+" ^ lambda_body ^ "
+pop rbp
+ret
+
+lambda_end:"
 
 
 
@@ -427,6 +402,6 @@ find_param:
   let mapped = List.map (fun(elem)-> (generate_handle consts fvars elem env counter) ^ code_to_write) list in
   (list_to_string mapped) ;; 
 
-   let generate consts fvars e = generate_handle consts fvars e [] 0 ;;
+   let generate consts fvars e = generate_handle consts fvars e 0 0 ;;
 
 end;;
