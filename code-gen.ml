@@ -247,9 +247,9 @@ let rec get_param_names_as_string params = match params with
   | Var'(VarFree(str)) -> let address = addressInFvarTable fvars str in
                 "mov rax, qword [fvar_tbl+" ^ string_of_int address ^"*WORD_SIZE]"
   | Var'(VarParam (str , minor)) -> "mov rax, qword [rbp + (4 + "^string_of_int minor^")*WORD_SIZE]"
-  | Var'(VarBound (str ,major, minor)) ->"mov rax, qword [rbp + 8 ∗ 2]
-  mov rax, qword [rax + 8 ∗ "^string_of_int major^"]
-  mov rax, qword [rax + 8 ∗ "^string_of_int minor^"]"
+  | Var'(VarBound (str ,major, minor)) ->"mov rax, qword [rbp + 2 * WORD_SIZE]
+  mov rax, qword [rax + "^string_of_int major^"*WORD_SIZE]
+  mov rax, qword [rax + "^string_of_int minor^"*WORD_SIZE]"
   (* | Box' of var *) (*  /////////////// check if need to implement generate to var parmam inside the box
   and then it comes back in rax, so after u didi genreate append malloc array (size 1 = size 8)  
   put the address inside the array
@@ -291,63 +291,87 @@ let rec get_param_names_as_string params = match params with
   cmp rax, SOB_FALSE_ADDRESS
   jne LexitOr\n") consts fvars env counter) ^ "
   LexitOr:" )
-  | LambdaSimple' (params , body) ->
-      let lambda_body       = generate_handle consts fvars body (env + 1) counter  in 
-      let new_env_size      = string_of_int ((env + 1) * 8) in
-      let old_env_size      = string_of_int env in
-      let parmas_len        =  string_of_int(List.length params) in 
-"
-chin:
-mov r8, " ^parmas_len^" 	              ;get number of args [rbp+3*WORD_SIZE]
-mov r9, r8                                ;r9 <- num_of_args for loop of extending env
-shl r8, 3				                          ;size to allocate <- pointer size * num of args
-MALLOC r8, r8                             ;r8 <- new_vector
+   | LambdaSimple' (params , body) ->  
+      let counter = counter + 1 in 
+      let old_env_size = env in
+      let ext_env_size = (old_env_size + 1) in
+      let ext_env_malloc = Printf.sprintf " 
+      \n;push rax \n MALLOC rax , %d" (ext_env_size * 8) in
+      let init_for = Printf.sprintf "
+      mov r15 ,%d" ext_env_size  ^ 
+     Printf.sprintf" 
+      mov	r9, %d" old_env_size in 
+      let loop_body = Printf.sprintf "
+      loopC"^ string_of_int(counter) ^":
+      mov r11, r15
+      shl r11,3
+      mov r14 ,r11 ;;get the j'th element in ext env
+      add r14 ,rax ;; get to its address from the start of the vector
+      mov r13, r9
+      shl r13,3
+      mov rsi ,r13  ;;get the i'th element in env
+      add rsi, rbp ;; get to its address from the start of the vector -paz say that its rbp + 16
+      add rsi , 16 
+      mov r12, qword[rsi]
+      mov qword[r14], r12 ;; assignment to he new vector
+      dec r15 ;;contonue the loop
+      dec r9
+      cmp r9 ,0
+      jg loopC"^ string_of_int(counter) ^"
+      je create_closure"^ string_of_int(counter) ^"
 
-mov r10, 0                                ;r10 <- index of current param
+    " in
+    let params_len = (List.length params) in 
+    let ext_env_zero_elem_malloc = Printf.sprintf "  \n MALLOC r10, %d" (params_len * 8) in 
+   let init =Printf.sprintf "
+    ;push rbx ;;length of params
+    ;push rcx ;; pointer i in extenv [0][i]
+    mov r9, %d" params_len  in
+let init_params ="
+  ;push rsi
+  mov rsi ,rbp
+  add rsi , 32"   in 
+    
+let loop_assembly =  "
+   ;push rdx
+   mov r14 ,r9  ;; save the original num of params
+    loop1"^ string_of_int(counter) ^":
+    mov r11, r9
+    shl r11,3
+    mov r15 ,r11  ;;gets to the relevent i'th place insdide extenv[0][i]
+    add r15, r10 ;; the actual address of extenv[0][i]
+    jmp find_param"^ string_of_int(counter) ^"
 
-add_params_to_env:                    ;copying args to new env
-cmp r10, r9                               ;r10 = num_of_args?
-je finish_params                      ;true -> jump to next action
-mov r11,PVAR(r10)                         ;r11 <- current param
-mov [r8+r10*WORD_SIZE], r11               ;new_vector[r10] <- r11
-inc r10                                  ;r10 <- next param
-jmp add_params_to_env
+    find_param"^ string_of_int(counter) ^":
+    mov r11, r9
+    shl r11, 3
+    mov rdi , r11                    ;;when we find the arguemnt we mov its value to rdi.
+    mov rdi , qword[rsi + rdi ]      ;; takes params[i] into rdi
+    jmp after_find_param"^ string_of_int(counter) ^"
 
-finish_params:                        ;finished copying args to new_vector
+    after_find_param"^ string_of_int(counter) ^":
+    mov qword[r15] ,rdi ;;the relevant param will be inside rdi . we will mov it to extenv[0][i] in rcx
+    dec r9
+    jnz loop1"^ string_of_int(counter) ^"  ;;continue the looop
+    mov [rax],r10
+   "in
+ let create_closure =" 
+  create_closure"^ string_of_int(counter) ^":
+   ;push rbx
+   mov r9, rax                       ;;save the address of extenv into rbx 
+   MAKE_CLOSURE (rax, r9 ,Lcode"^ string_of_int(counter) ^" ) ;; create closure , results in rax, ExtEnv is in rbx, Lcode is the code to do
+   jmp Lcont"^ string_of_int(counter) ^" 
 
-mov r10, "^new_env_size^"
-MALLOC r10, r10                           ;r10 <- new env with size = (env_size + 1) * 8
-mov [r10], r8                             ;r10[0] <- pointer to new_vector
-
-mov rsi, 0                                ;rsi = index of major in old env starting from 0
-mov rdi, 1                                ;rdi = index of major in new_env starting from 1
-copy_old_env:                         ;Copying old env to new env
-cmp rsi, " ^old_env_size^ "               ;rsi = size of old env?
-je  finished_new_env                  ;true -> go to next action
-
-mov r9, [rbp + WORD_SIZE*2]               ;r9 <- location of old_env in stack
-mov r9, [r9 + rsi*WORD_SIZE]              ;r9 <- old_env[rsi] (pointer current vector)
-mov [r10+rdi*WORD_SIZE], r9               ;new_env[rdi] <- old_env[rsi]
-
-inc rsi                                   ;inc index of major in old_env
-inc rdi                                   ;inc index of major in new_env
-
-jmp copy_old_env                      ;copy next vector from old_env to new_env
-
-finished_new_env:                     ;finished creating new_env
-
-MAKE_CLOSURE (rax, r10,  lambda_code) ;create a new closure, with new_env at r10, body at label address
-jmp lambda_end                        ;Skip lambda body. will only execute when called
-
-lambda_code:
-push rbp                                  
-mov rbp,rsp
-" ^ lambda_body ^ "
-pop rbp
-ret
-
-lambda_end:"
-
+  Lcode"^ string_of_int(counter) ^":
+    push rbp
+    mov rbp, rsp
+   " ^ (generate_handle consts fvars body (env+1) counter) ^"
+    ;pop rbp
+    leave
+    ret
+  Lcont"^ string_of_int(counter) ^":
+ "  in 
+       ext_env_malloc ^ init_for ^loop_body ^ext_env_zero_elem_malloc ^ init ^ init_params ^  loop_assembly  ^create_closure
 
 
  (* | LambdaOpt' of string list * string * expr' *)
@@ -373,28 +397,29 @@ lambda_end:"
           
           " in
           with_proc ^ assembly_check 
-(* 
-  | ApplicTP'  (proc , arg_list) ->
+
+  (* | ApplicTP'  (proc , arg_list) ->
+    let counter=counter+1 in
           let rev = List.rev arg_list in
-          let args_text = gen_map rev "push rax \n" consts fvars counter in
-          let post_args = args_text ^ "push n \n" in
-          let proc_text = generate_handle consts fvars proc env  counterin
+          let args_text = gen_map rev "\n push rax \n" consts fvars env  counter in
+          let post_args = args_text ^ "\n push "^ (string_of_int (List.length arg_list))^" \n" in
+          let proc_text = generate_handle consts fvars proc env counter in
           let with_proc = post_args ^ proc_text in
           let assembly_check = 
-          "
-          cmp byte [rax] T_CLOSURE
-          jne ApplicTPexit
-          push rax qword [rax+1]
-          push qword [rbp + 8 * 1] ; old ret addr
-          add rsp, 8*1 ; pop env
-          pop rbx ; pop
-          arg count
+          "\n 
+          cmp byte[rax],  T_CLOSURE
+          jne invalid     
+          CLOSURE_ENV rbx, rax
+          push rbx
+          CLOSURE_CODE rbx, rax
+          call rbx
+          add rsp, 8*1         ; pop env
+          pop rbx ; pop arg count
           shl rbx, 3 ; rbx = rbx * 8
           add rsp, rbx; pop args
-          ApplicTPexit:
-          " in 
-          with_proc ^ assembly_check
-*)
+          
+          " in
+          with_proc ^ assembly_check  *)
   |_->""
   
 
