@@ -116,7 +116,6 @@ List.map (fun(x)->(x))
 
 let epilogue = "
 
-
 car_nasm:
     push rbp
     mov rbp, rsp
@@ -126,7 +125,6 @@ car_nasm:
     mov rax, qword[rsi+1]
     leave
     ret
-
 
 cdr_nasm:
     push rbp
@@ -177,74 +175,33 @@ cons_nasm:
     leave
     ret
 
-
 apply_nasm:
     push rbp
     mov rbp, rsp
-    mov rsi, PVAR(0)
-    mov rsi,[rsi]
-    mov rdi, PVAR(1)
-        mov rdi,[rdi]
-    mov r8, PVAR(2)
-    mov r8,[r8]
-    mov r13, PVAR(3)
-    mov r9, PVAR(4)
-    mov rax, r8
-    ;push rdi
-    ;push rsi
-    ;mov rdi,qword [rbp + 8 * 4]  ;proc
-    ;mov r8, qword [rbp + 8 * 3]  ;number of arguments
-    ;dec r8
-    ;mov r11, r8                  ;number of args
-    ;chinkush:
-    ;mov r8b, byte [rbp + 8 * 5]
-    ;mov r8, [r8]
-    ;push r8
-    ;mov r8b, byte [rbp + 8 * 6]
-    ;mov r8, [r8]
+    push rax
+    push rbx
+    mov rax, PVAR(-1)   ;PVAR(-1) - num of args
+    dec rax
+    mov rdi, PVAR(0)    ;PVAR(0) - proc
+                        ;PVAR(..) - args    
 
-    ;push r8
-    ;mov r8b, byte [rbp + 8 * 7]
-    ;mov r8, [r8]
+apply_loop:
+  cmp rax, 0
+  je after_apply_loop
+  mov rbx, PVAR(rax)
+  mov rbx,qword[rbx]
+  mov bl,bh
+  mov bh, 0
+  push rbx
+  dec rax
+  jmp apply_loop
 
-    ;push r8
-    ;jmp loop_apply  
-    ;after_loop_apply:
-    ;push r11
-    ;push rdi
-    ;call rdi
-    
-    ;chinki:
-    ;pop rdi
-    ;pop rsi
-    ;leave
-    ;ret
-
-
-;loop_apply:
-;cmp r8, 0
-;je after_loop_apply
-;mov r9, rbp
-;add r9, 24
-;mov r9, [r9+r8*WORD_SIZE]
-;mov r12, r8
-
-;mulby8:
-;cmp r12 ,0
-;je after_mul
-;add r9, 8
-;dec r12
-;jmp mulby8
-
-
-;after_mul:
-;mov r9, [r9]
-;mov rsi, r9
-;push r9
-;dec r8
-;jmp loop_apply
-
-
+after_apply_loop:
+  ;pop rbx
+  ;pop rax
+  call rdi ;pop rbp pop rsp , mabye need to move to rax tha ans
+  leave 
+  ret
 
 
 ;
