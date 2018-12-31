@@ -1,0 +1,59 @@
+| LambdaSimple' (params , body) ->
+ let counter = counter +1 in
+      let lambda_body       = generate_handle consts fvars body (env + 1) counter  in 
+      let new_env_size      = string_of_int ((env + 1) * 8) in
+      let old_env_size      = string_of_int env in
+      let parmas_len        =  string_of_int(List.length params) in 
+"
+mov r8, " ^parmas_len^" 	              ;get number of args [rbp+3*WORD_SIZE]
+mov r9, r8                                ;r9 <- num_of_args for loop of extending env
+shl r8, 3				                          ;size to allocate <- pointer size * num of args
+MALLOC r8, r8                             ;r8 <- new_vector
+
+mov r10, 0                                ;r10 <- index of current param
+
+add_params_to_env"^ string_of_int(counter) ^":                    ;copying args to new env
+cmp r10, r9                               ;r10 = num_of_args?
+je finish_params"^ string_of_int(counter) ^"                      ;true -> jump to next action
+mov r11,PVAR(r10)                         ;r11 <- current param
+mov [r8+r10*WORD_SIZE], r11               ;new_vector[r10] <- r11
+inc r10                                  ;r10 <- next param
+jmp add_params_to_env"^ string_of_int(counter) ^"
+
+finish_params"^ string_of_int(counter) ^":                        ;finished copying args to new_vector
+
+mov r10, "^new_env_size^"
+MALLOC r10, r10                           ;r10 <- new env with size = (env_size + 1) * 8
+mov [r10], r8                             ;r10[0] <- pointer to new_vector
+
+mov rsi, 0                                ;rsi = index of major in old env starting from 0
+mov rdi, 1                                ;rdi = index of major in new_env starting from 1
+copy_old_env"^ string_of_int(counter) ^":                         ;Copying old env to new env
+cmp rsi, " ^old_env_size^ "               ;rsi = size of old env?
+je  finished_new_env"^ string_of_int(counter) ^"                  ;true -> go to next action
+
+mov r9, [rbp + WORD_SIZE*2]               ;r9 <- location of old_env in stack
+mov r9, [r9 + rsi*WORD_SIZE]              ;r9 <- old_env[rsi] (pointer current vector)
+mov [r10+rdi*WORD_SIZE], r9               ;new_env[rdi] <- old_env[rsi]
+
+inc rsi                                   ;inc index of major in old_env
+inc rdi                                   ;inc index of major in new_env
+
+jmp copy_old_env"^ string_of_int(counter) ^"                      ;copy next vector from old_env to new_env
+
+finished_new_env"^ string_of_int(counter) ^":                     ;finished creating new_env
+
+MAKE_CLOSURE (rax, r10,  lambda_code"^ string_of_int(counter) ^") ;create a new closure, with new_env at r10, body at label address
+jmp lambda_end"^ string_of_int(counter) ^"                        ;Skip lambda body. will only execute when called
+
+lambda_code"^ string_of_int(counter) ^":
+push rbp                                  
+mov rbp,rsp
+" ^ lambda_body ^ "
+pop rbp
+ret
+
+lambda_end"^ string_of_int(counter) ^":"
+
+
+t
