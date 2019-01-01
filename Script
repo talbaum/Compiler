@@ -1,8 +1,12 @@
-utop
-#use "semantic-analyser.ml";;
-open Semantics;;
-test "(define x 1)";;
-
++let nt_lineComment =
++  let nt_begin = char ';' in
++  let nt_eol = char '\n' in
++  let nt_end = pack nt_end_of_input (fun _ -> '\n') in
++  let nt_eol_end = disj nt_eol nt_end in
++  let nt = diff nt_any nt_eol_end in
++  let nt = caten nt_begin (star nt) in
++  let nt_comment = caten nt nt_eol_end in
++  pack nt_comment (fun (_) -> Nil);;
 -----------------------------------------------
 
 set disassembly-flavor intel
