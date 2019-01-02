@@ -325,13 +325,15 @@ packed s
 
 
 and _line_comment_ s=
+let _end_of_file = PC.pack PC.nt_end_of_input (fun _ -> '\n') in
+let _end_of_comment_ = PC.disj (PC.char '\n') _end_of_file   in
 let _no_newline_ =(PC.range (char_of_int 32) (char_of_int 127)) in
-let _comment_char_data_ =PC.guard _no_newline_ (fun(literal)-> ( literal!='\n')) in
+let _comment_char_data_ = PC.diff PC.nt_any _end_of_comment_ in
 let _comment_full_data_ = PC.star _comment_char_data_ in
 let _comment_start_and_data_ = PC.caten _psikuda_ _comment_full_data_ in
-let _end_of_comment_ = PC.disj (PC.char '\n') (PC.char (char_of_int 3))  in
 let _line_Comment1_ =  PC.pack (PC.caten _comment_start_and_data_ _end_of_comment_) (fun ((x,y),z)->[])  in
 _line_Comment1_ s
+
 
 and _comments_and_spaces_ s=
 let _Space_ =  PC.pack (PC.nt_whitespace) (fun(x)->[]) in
