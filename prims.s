@@ -893,4 +893,3 @@ bin_equ:
 
     leave
     ret
-
