@@ -8,6 +8,12 @@ tui reg general
 
 x/12xg $rsp
 
+
+ -------------------------------------------------------------------------------
+   (match ast with
+   |Const'(e) -> (match e with
+      | Void -> sexpr_list @ [] @ (collect_all_sexprs others sexpr_list)
+      | Sexpr(e) -> sexpr_list @  handle_const e sexpr_list) @ (collect_all_sexprs others sexpr_list)
  -------------------------------------------------------------------------------
  
 #use "semantic-analyser.ml";;
