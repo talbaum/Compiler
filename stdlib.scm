@@ -189,3 +189,4 @@
 	 (and (string? x) (string? y) (compare-composite x y string-ref string-length))
 	 (and (vector? x) (vector? y) (compare-composite x y vector-ref vector-length))
 	 (eq? x y))))))
+
