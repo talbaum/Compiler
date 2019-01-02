@@ -20,10 +20,10 @@ module Code_Gen : CODE_GEN = struct
   (match asts with
   | [] -> []
   |(ast::others) -> 
-  (match ast with
-  |Const'(e) -> (match e with
-  | Void -> []
-  | Sexpr(e) ->handle_const e sexpr_list)
+   (match ast with
+   |Const'(e) -> (match e with
+      | Void -> sexpr_list @ [] @ (collect_all_sexprs others sexpr_list)
+      | Sexpr(e) -> sexpr_list @ handle_const e sexpr_list) @ (collect_all_sexprs others sexpr_list)
   (* | Const'(e) -> sexpr_list @ [e] @ (collect_all_sexprs others sexpr_list) (*verify order *) *)
   | If' (testExp , thenExp , elseExp) -> collect_all_sexprs [testExp] sexpr_list @ collect_all_sexprs [thenExp] sexpr_list @ collect_all_sexprs [elseExp] sexpr_list @ (collect_all_sexprs others sexpr_list) 
   | Seq'(expr_list) ->  collect_all_sexprs expr_list sexpr_list @ (collect_all_sexprs others sexpr_list)  
@@ -266,15 +266,23 @@ let bound =1073741823 in
   | Var'(VarFree(str)) -> let address = addressInFvarTable fvars str in
                 "mov rax, qword [fvar_tbl+" ^ string_of_int address ^"*WORD_SIZE]"
   | Var'(VarParam (str , minor)) -> "
-  mov r10, (4 + "^string_of_int minor^")*WORD_SIZE
-  mov rax, qword [rbp + r10]"
+ ; mov r10, (4 + "^string_of_int minor^")*WORD_SIZE                               // RETURN IT
+ ; mov rax, qword [rbp + r10]                                                    // RETURN IT
+ mov rax, qword [rbp +8 *(4+"^string_of_int minor^")] 
+ 
+ "
   | Var'(VarBound (str ,major, minor)) ->"mov rax, qword [rbp + 2 * WORD_SIZE]
   mov rax, qword [rax + "^string_of_int major^"*WORD_SIZE]
   mov rax, qword [rax + "^string_of_int minor^"*WORD_SIZE]"
-  (* | Box' of var *) (*  /////////////// check if need to implement generate to var parmam inside the box
+   | Box' (v) -> generate_handle consts fvars (Var'(v)) env counter ^ "
+    mov rbx, rax
+    MALLOC rax,8
+    mov rax,[rbx]
+   "
+   (*  /////////////// check if need to implement generate to var parmam inside the box
   and then it comes back in rax, so after u didi genreate append malloc array (size 1 = size 8)  
-  put the address inside the array
-   *)
+  put the address inside the array*)
+  
   | BoxGet'(((v)) as vari)-> (generate_handle consts fvars (Var'(vari)) env counter ) ^ "\n mov rax, qword [rax]"
   | BoxSet'((v) as vari ,value) -> 
     let  value_text =(generate_handle consts fvars value env counter ) ^ "\n push rax \n" in
@@ -309,13 +317,11 @@ let bound =1073741823 in
   let address =  addressInFvarTable fvars str in
   value_text ^ "\n" ^
    "mov [fvar_tbl+" ^ (string_of_int address) ^"*WORD_SIZE], rax \n"^ "mov rax, SOB_VOID_ADDRESS \n"
-
   | Or'(list)-> ((gen_map list ("
   cmp rax, SOB_FALSE_ADDRESS
   jne LexitOr\n") consts fvars env counter) ^ "
   LexitOr:" )
   
-   
   | LambdaSimple' (params , body) -> 
       let () =Random.self_init() in 
       let old_env_size = env in
@@ -330,21 +336,33 @@ let bound =1073741823 in
       let create_closure_suffix = random_suffix() in
       let lcode_suffix = random_suffix() in
       let lcont_suffix = random_suffix() in
-
+      let args_setup = 
         "
     args_setup"^args_setup_suffix^": 
       mov rdx , 0
-      mov r9,"^ string_of_int params_len ^"   ;CHECKKKKKKKKKKKKK
+      mov r9,"^ string_of_int params_len ^"  
       cmp r9, 0
       je no_params"^ no_params_suffix ^"
-      MALLOC r10, "^ string_of_int  (params_len * 8)  ^"  ;CHECKKKKKKKKKKKKK
-      jmp find_params"^ find_params_suffix ^"
-      
+      MALLOC r10, "^ string_of_int  (params_len * 8)  ^"  
+      jmp find_params"^ find_params_suffix ^" 
+      " in
+    let no_params = "
       no_params"^ no_params_suffix ^":
         MALLOC r10, 8
-        mov r12,[r10 -8]
-        mov [r10], r12
+      no_paramsloop"^ no_params_suffix ^":
+          mov r9,qword[rbp+3*WORD_SIZE]
+          cmp r9,rdx
+          je after_find_param"^ after_find_param_suffix ^"
+          mov r13, rdx
+          shl r13 , 3
+          add r10, r13
+          mov r12, PVAR(rdx)
+          mov [r10], r12
+          inc rdx
+          jmp no_paramsloop"^ no_params_suffix ^"
+        " in
 
+      let find_params = "
       find_params"^ find_params_suffix ^":
           cmp r9,rdx
           je after_find_param"^ after_find_param_suffix ^"
@@ -354,14 +372,17 @@ let bound =1073741823 in
           mov r12, PVAR(rdx)
           mov [r10], r12
           inc rdx
-          jmp find_params"^ find_params_suffix ^"
-
+          jmp find_params"^ find_params_suffix ^" 
+          "in
+      let after_find_params = "
       after_find_param"^ after_find_param_suffix ^":
            MALLOC rax ,"^ ext_env_size_address ^ "
             mov qword[rax],r10
             mov r15,0
-            mov r9,1
-
+            mov r9,1 
+            " in   
+                
+      let loop_env = "
       loop_env"^ loop_env_suffix ^":
         cmp r15, "^string_of_int old_env_size ^"
         je create_closure"^ create_closure_suffix ^"
@@ -383,13 +404,16 @@ let bound =1073741823 in
 
         inc r15
         inc r9
-        jmp loop_env"^ loop_env_suffix ^"
+        jmp loop_env"^ loop_env_suffix ^" 
+        " in
 
+       let create_closure = " 
 create_closure"^ create_closure_suffix ^":
    mov r9, rax                    
    MAKE_CLOSURE (rax, r9 ,Lcode"^ lcode_suffix ^" ) 
    jmp Lcont"^ lcont_suffix ^" 
-
+   " in
+   let lcode = "
   Lcode"^ lcode_suffix ^":
     push rbp
     mov rbp, rsp
@@ -399,17 +423,112 @@ create_closure"^ create_closure_suffix ^":
     ret
   Lcont"^lcont_suffix ^":
 
-"
+" in
+  args_setup ^ no_params ^ find_params ^ after_find_params ^ loop_env ^create_closure ^ lcode
+  (* | LambdaOpt'(params , vs ,body)  ->
+      let () =Random.self_init() in 
+      let old_env_size = env in
+      let ext_env_size = old_env_size + 1 in
+      let ext_env_size_address = string_of_int(ext_env_size * 8) in
+      let params_len = (List.length params) in 
+      let args_setup_suffix = random_suffix() in
+      let no_params_suffix = random_suffix() in
+      let find_params_suffix = random_suffix() in
+      let after_find_param_suffix = random_suffix() in
+      let loop_env_suffix = random_suffix() in
+      let create_closure_suffix = random_suffix() in
+      let lcode_suffix = random_suffix() in
+      let lcont_suffix = random_suffix() in
+      let fix_stack_suffix = random_suffix() in
+      let args_setup = 
+        "
+    args_setup"^args_setup_suffix^": 
+      mov rdx , 0
+      mov r9,"^ string_of_int params_len ^"  
+      cmp r9, 0
+      je no_params"^ no_params_suffix ^"
+      MALLOC r10, "^ string_of_int  (params_len * 8)  ^"  
+      jmp find_params"^ find_params_suffix ^" 
+      " in
+    let no_params = "
+      no_params"^ no_params_suffix ^":
+        MALLOC r10, 8
+        mov r12,[r10 -8]
+        mov [r10], r12 
+        " in
+
+      let find_params = "
+      find_params"^ find_params_suffix ^":
+          cmp r9,rdx
+          je after_find_param"^ after_find_param_suffix ^"
+          mov r13, rdx
+          shl r13 , 3
+          add r10, r13
+          mov r12, PVAR(rdx)
+          mov [r10], r12
+          inc rdx
+          jmp find_params"^ find_params_suffix ^" 
+          "in
+      let after_find_params = "
+      after_find_param"^ after_find_param_suffix ^":
+           MALLOC rax ,"^ ext_env_size_address ^ "
+            mov qword[rax],r10
+            mov r15,0
+            mov r9,1 
+            " in       
+      let loop_env = "
+      loop_env"^ loop_env_suffix ^":
+        cmp r15, "^string_of_int old_env_size ^"
+        je create_closure"^ create_closure_suffix ^"
+        mov r14, r15
+        shl r14, 3
+
+        mov r13,rbp
+        add r13 , 16
+        mov r11, qword[r13]
+
+        add r11, r14
+        mov r11 ,[r11]
+
+        mov r14, r9
+        shl r14, 3
+        mov r13, rax
+        add r13, r14
+        mov [r13] , r11
+
+        inc r15
+        inc r9
+        jmp loop_env"^ loop_env_suffix ^" 
+        " in
+
+       let create_closure = " 
+create_closure"^ create_closure_suffix ^":
+   mov r9, rax                    
+   MAKE_CLOSURE (rax, r9 ,Lcode"^ lcode_suffix ^" ) 
+   jmp Lcont"^ lcont_suffix ^" 
+   " in
+   let lcodeopt = "
+  Lcode"^ lcode_suffix ^":
+    jmp fix_stack"^fix_stack_suffix^"
+    push rbp
+    mov rbp, rsp
+   " ^ (generate_handle consts fvars body (env+1) counter) ^"
+    pop rbp
+    ;leave
+    ret
+    
+  Lcont"^lcont_suffix ^":
+
+" in
+  args_setup ^ no_params ^ find_params ^ after_find_params ^ loop_env ^create_closure ^ lcodeopt *)
 
 
- 
 
- (* | LambdaOpt' of string list * string * expr' *)
   | Applic' (proc , arg_list) -> 
           (*let () = incr counter in*)
           let rev = List.rev arg_list in
           let args_text = gen_map rev "\n push rax \n" consts fvars env  counter in
-          let post_args = args_text ^ "\n push "^ (string_of_int (List.length arg_list))^" \n" in
+          let post_args = args_text ^ "\n push "^ string_of_int (List.length arg_list)^" \n" in
           let proc_text = generate_handle consts fvars proc env counter in
           let with_proc = post_args ^ proc_text in
           let assembly_check = 
@@ -418,8 +537,8 @@ create_closure"^ create_closure_suffix ^":
           jne invalid     
           CLOSURE_ENV rbx, rax
           push rbx
-          CLOSURE_CODE rbx, rax
-          call rbx
+          CLOSURE_CODE rax, rax
+          call rax
           add rsp, 8*1         ; pop env
           pop rbx ; pop arg count
           shl rbx, 3 ; rbx = rbx * 8
