@@ -22,8 +22,7 @@ let string_to_asts s = List.map Semantics.run_semantics
    "char->integer", "char_to_integer"; "integer->char", "integer_to_char"; "eq?", "is_eq";
    "+", "bin_add"; "*", "bin_mul"; "-", "bin_sub"; "/", "bin_div"; "<", "bin_lt"; "=", "bin_equ";
    "car","car_nasm"; "cdr","cdr_nasm"; "set-car!","set_car"; "set-cdr!","set_cdr"; "cons","cons_nasm";
-    "apply","apply_nasm" 
-(* you can add yours here *)];;
+    "apply","apply_nasm" ];;
 
 
 let isEqual_constant e1 e2=
@@ -78,8 +77,8 @@ const_tbl:
 fvar_tbl:
 " ^ (String.concat "\n" (List.map (fun _ -> "dq T_UNDEFINED") fvars_tbl)) ^ "
 
-global main
 section .text
+global main
 main:
     ;; set up the heap
     mov rdi, MB(100)
@@ -95,7 +94,7 @@ main:
     push qword SOB_NIL_ADDRESS
     push qword T_UNDEFINED
     push rsp
-
+    mov rbp, rsp
     call code_fragment
     add rsp, 4*8
     ret
@@ -176,32 +175,33 @@ cons_nasm:
     ret
 
 apply_nasm:
-    push rbp
-    mov rbp, rsp
-    push rax
-    push rbx
-    mov rax, PVAR(-1)   ;PVAR(-1) - num of args
-    dec rax
-    mov rdi, PVAR(0)    ;PVAR(0) - proc
+   nop
+   ; push rbp
+   ; mov rbp, rsp
+   ; push rax
+   ; push rbx
+   ; mov rax, PVAR(-1)   ;PVAR(-1) - num of args
+  ;  dec rax
+ ;   mov rdi, PVAR(0)    ;PVAR(0) - proc
                         ;PVAR(..) - args    
 
-apply_loop:
-  cmp rax, 0
-  je after_apply_loop
-  mov rbx, PVAR(rax)
-  mov rbx,qword[rbx]
-  mov bl,bh
-  mov bh, 0
-  push rbx
-  dec rax
-  jmp apply_loop
+;apply_loop:
+ ; cmp rax, 0
+ ; je after_apply_loop
+ ; mov rbx, PVAR(rax)
+ ; mov rbx,qword[rbx]
+ ; mov bl,bh
+ ; mov bh, 0
+ ; push rbx
+ ; dec rax
+ ; jmp apply_loop
 
-after_apply_loop:
+;after_apply_loop:
   ;pop rbx
   ;pop rax
-  call rdi ;pop rbp pop rsp , mabye need to move to rax tha ans
-  leave 
-  ret
+  ;call rdi ;pop rbp pop rsp , mabye need to move to rax tha ans
+  ;leave 
+  ;ret
 
 
 ;
@@ -217,6 +217,7 @@ after_apply_loop:
 ;%endmacro
 
 invalid:
+leave
 ret
 ";;
 exception X_missing_input_file;;
