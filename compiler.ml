@@ -217,7 +217,7 @@ after_apply_loop:
 ;%endmacro
 
 invalid:
-  ret
+ret
 ";;
 exception X_missing_input_file;;
 
