@@ -266,9 +266,9 @@ let bound =1073741823 in
   | Var'(VarFree(str)) -> let address = addressInFvarTable fvars str in
                 "mov rax, qword [fvar_tbl+" ^ string_of_int address ^"*WORD_SIZE]"
   | Var'(VarParam (str , minor)) -> "
- ; mov r10, (4 + "^string_of_int minor^")*WORD_SIZE                               // RETURN IT
- ; mov rax, qword [rbp + r10]                                                    // RETURN IT
- mov rax, qword [rbp +8 *(4+"^string_of_int minor^")] 
+  mov r10, (4 + "^string_of_int minor^")*WORD_SIZE                               // RETURN IT
+  mov rax, qword [rbp + r10]                                                    // RETURN IT
+; mov rax, qword [rbp +8 *(4+"^string_of_int minor^")] 
  
  "
   | Var'(VarBound (str ,major, minor)) ->"mov rax, qword [rbp + 2 * WORD_SIZE]
@@ -317,10 +317,13 @@ let bound =1073741823 in
   let address =  addressInFvarTable fvars str in
   value_text ^ "\n" ^
    "mov [fvar_tbl+" ^ (string_of_int address) ^"*WORD_SIZE], rax \n"^ "mov rax, SOB_VOID_ADDRESS \n"
-  | Or'(list)-> ((gen_map list ("
+  | Or'(list)-> 
+   let () =Random.self_init() in 
+      let suffix = random_suffix() in
+      ((gen_map list ("
   cmp rax, SOB_FALSE_ADDRESS
-  jne LexitOr\n") consts fvars env counter) ^ "
-  LexitOr:" )
+  jne LexitOr"^suffix^"\n") consts fvars env counter) ^ "
+  LexitOr"^suffix^":" )
  
   | LambdaSimple' (params , body) -> 
       let () =Random.self_init() in 
