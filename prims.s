@@ -7,7 +7,7 @@ is_boolean:
 
     cmp sil, T_BOOL
     jne .wrong_type
-    mov rax, SOB_TRUE_ADDRESS
+    mov rax, sob_true
     jmp .return
 
 .wrong_type:
@@ -25,7 +25,7 @@ is_float:
 
     cmp sil, T_FLOAT
     jne .wrong_type
-    mov rax, SOB_TRUE_ADDRESS
+    mov rax, sob_true
     jmp .return
 
 .wrong_type:
@@ -43,7 +43,7 @@ is_integer:
 
     cmp sil, T_INTEGER
     jne .wrong_type
-    mov rax, SOB_TRUE_ADDRESS
+    mov rax, sob_true
     jmp .return
 
 .wrong_type:
@@ -61,7 +61,7 @@ is_pair:
 
     cmp sil, T_PAIR
     jne .wrong_type
-    mov rax, SOB_TRUE_ADDRESS
+    mov rax, sob_true
     jmp .return
 
 .wrong_type:
@@ -79,7 +79,7 @@ is_null:
 
     cmp sil, T_NIL
     jne .wrong_type
-    mov rax, SOB_TRUE_ADDRESS
+    mov rax, sob_true
     jmp .return
 
 .wrong_type:
@@ -97,7 +97,7 @@ is_char:
 
     cmp sil, T_CHAR
     jne .wrong_type
-    mov rax, SOB_TRUE_ADDRESS
+    mov rax, sob_true
     jmp .return
 
 .wrong_type:
@@ -115,7 +115,7 @@ is_vector:
 
     cmp sil, T_VECTOR
     jne .wrong_type
-    mov rax, SOB_TRUE_ADDRESS
+    mov rax, sob_true
     jmp .return
 
 .wrong_type:
@@ -133,7 +133,7 @@ is_string:
 
     cmp sil, T_STRING
     jne .wrong_type
-    mov rax, SOB_TRUE_ADDRESS
+    mov rax, sob_true
     jmp .return
 
 .wrong_type:
@@ -151,7 +151,7 @@ is_procedure:
 
     cmp sil, T_CLOSURE
     jne .wrong_type
-    mov rax, SOB_TRUE_ADDRESS
+    mov rax, sob_true
     jmp .return
 
 .wrong_type:
@@ -169,7 +169,7 @@ is_symbol:
 
     cmp sil, T_SYMBOL
     jne .wrong_type
-    mov rax, SOB_TRUE_ADDRESS
+    mov rax, sob_true
     jmp .return
 
 .wrong_type:
@@ -454,8 +454,8 @@ bin_add:
     addsd xmm0, xmm1
 
     pop r8
-    cmp r8, 0
-    je .return_float
+    cmp r8, 3
+    jne .return_float
 
     cvttsd2si rsi, xmm0
     MAKE_INT(rax, rsi)
@@ -534,8 +534,8 @@ bin_mul:
     mulsd xmm0, xmm1
 
     pop r8
-    cmp r8, 0
-    je .return_float
+    cmp r8, 3
+    jne .return_float
 
     cvttsd2si rsi, xmm0
     MAKE_INT(rax, rsi)
@@ -614,8 +614,8 @@ bin_sub:
     subsd xmm0, xmm1
 
     pop r8
-    cmp r8, 0
-    je .return_float
+    cmp r8, 3
+    jne .return_float
 
     cvttsd2si rsi, xmm0
     MAKE_INT(rax, rsi)
@@ -694,8 +694,8 @@ bin_div:
     divsd xmm0, xmm1
 
     pop r8
-    cmp r8, 0
-    je .return_float
+    cmp r8, 3
+    jne .return_float
 
     cvttsd2si rsi, xmm0
     MAKE_INT(rax, rsi)
@@ -774,8 +774,8 @@ bin_lt:
     cmpltsd xmm0, xmm1
 
     pop r8
-    cmp r8, 0
-    je .return_float
+    cmp r8, 3
+    jne .return_float
 
     cvttsd2si rsi, xmm0
     MAKE_INT(rax, rsi)
@@ -866,8 +866,8 @@ bin_equ:
     cmpeqsd xmm0, xmm1
 
     pop r8
-    cmp r8, 0
-    je .return_float
+    cmp r8, 3
+    jne .return_float
 
     cvttsd2si rsi, xmm0
     MAKE_INT(rax, rsi)
