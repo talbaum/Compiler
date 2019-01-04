@@ -437,7 +437,26 @@ create_closure"^ create_closure_suffix ^":
   Lcont"^lcont_suffix ^":
 " in
 args_setup ^ no_params ^ find_params ^ after_find_params ^ loop_env ^create_closure ^ lcode
-    | LambdaOpt'(params , vs ,body)  ->
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  | LambdaOpt'(params , vs ,body)  ->
       let () =Random.self_init() in 
       let old_env_size = env in
       let ext_env_size = old_env_size + 1 in
@@ -452,6 +471,7 @@ args_setup ^ no_params ^ find_params ^ after_find_params ^ loop_env ^create_clos
       let create_closure_suffix = random_suffix() in
       let lcode_suffix = random_suffix() in
       let lcont_suffix = random_suffix() in
+      let suffix = random_suffix() in
       let args_setup = 
         "
     args_setup"^args_setup_suffix^": 
@@ -545,62 +565,52 @@ create_closure"^ create_closure_suffix ^":
    " in
    let lcodeOPT = "
   LcodeOPT"^ lcode_suffix ^":
-    mov r15 , "^string_of_int (params_len)^"    ;; Fix stack args
-    cmp  r15, 0                             ;; if no parms - do nothing
-    je done_fix"^ lcode_suffix ^"
+      push rbp
+      mov rbp, rsp
 
-    opt_list_len"^ lcode_suffix ^":
-    mov r15,qword[rbp+3*WORD_SIZE]            ;; caculate * => args in stacks - paramlen
-    sub r15 , " ^(string_of_int params_len) ^"
-    cmp r15, 0
-    jg handle_positive"^ lcode_suffix ^"      ;; if positive handke it
+      mov r13, SOB_NIL_ADDRESS
+      mov r15, qword [rbp + 3*WORD_SIZE] 
+      mov rsi,r15 
+      shl rsi, 3
+      sub r15, "^string_of_int params_len ^"   
+      cmp r15,0
+      je done_fix"^ lcode_suffix ^"
 
-    handle_negative"^ lcode_suffix ^":        ;; if negative just change the arg count in the stack
-      mov r14, qword[rbp+3*WORD_SIZE]
-      inc r14
-      mov qword[rbp+3*WORD_SIZE], r14
-      jmp done_fix"^ lcode_suffix ^"
-  
-    handle_positive"^ lcode_suffix ^":        
-      mov r14, r15
-      shl r14, 3
-      MALLOC r14, r14               ;; create opt list space, by * kaful wordsize
-      mov r13,1                      ;; index of params ot copy
+      mov r12, 32
+      add r12, rsi
+      add r12, rbp
 
-      build_opt_list"^ lcode_suffix ^":         ;; copy to params from stack to opt list
-        cmp r13,r15
-        jg list_ready"^ lcode_suffix ^"
-        mov r12, "^(string_of_int params_len) ^"      ;; RIGHT SIDE- we put this inside the new opt list
-        add r12, r13
-        shl r12, 3
-        add r12, rbp
-        mov r12,qword[r12]
-
-        mov r11, r13       ;; LEFT SIDE - which address to put right side in the opt list itself
-        dec r11               
-        shl r11,3
-        mov [r14 + r11] , r12
-        inc r13
-        jmp build_opt_list"^ lcode_suffix ^"
-
-      list_ready"^ lcode_suffix ^":           ;; insert new opt list to the correct location in stack
-        mov [rbp+(3+"^(string_of_int params_len_plus_one)^")*WORD_SIZE] , r14     ;; maybe [r14]
-
-      change_args_count"^ lcode_suffix ^":        ;; change the arg count to be paramslist +1
-           mov qword[rbp+3*WORD_SIZE] ,"^(string_of_int params_len_plus_one)^"
+  build_opt_list"^ suffix ^":
+      cmp r15, 0 
+      je finish"^suffix^"
+      mov r8, r13
+      sub r12, 8 
+      mov rdi ,[r12]
+      MAKE_PAIR (r13, rdi, r8)
+      dec r15
+      jmp build_opt_list"^ suffix ^"
+      
+    finish"^suffix^":
+      mov [r12],r13
+     
+     ; change_args_count"^ lcode_suffix ^":        ;; change the arg count to be paramslist +1
+     ;      mov qword[rbp+3*WORD_SIZE] ,"^(string_of_int params_len_plus_one)^"
 
 
   done_fix"^ lcode_suffix ^":
-    push rbp
-    mov rbp, rsp
    " ^ (generate_handle consts fvars body (env+1) counter) ^"
-    pop rbp
-    ;leave
+
+    mov   rbp, rsp    
+    pop   rbp
     ret
   LcontOPT"^lcont_suffix ^":
 
 " in
   args_setup ^ no_params ^ find_params ^ after_find_params ^ loop_env ^create_closure ^ lcodeOPT 
+
+
+
+
 
   | Applic' (proc , arg_list) -> 
           (*let () = incr counter in*)
@@ -663,7 +673,7 @@ create_closure"^ create_closure_suffix ^":
   (list_to_string mapped) ;; 
 
    let generate consts fvars e =
-    let counter : int ref = ref 0 in
-   generate_handle consts fvars e 0 counter ;;
+    (* let counter : int ref = ref 0 in *)
+   generate_handle consts fvars e 0 0 ;;
 
 end;;
