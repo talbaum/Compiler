@@ -1,3 +1,7 @@
+make -f ./compiler/Makefile tests;set o1=`scheme -q < ./tests.scm`; set o2=`./tests`;echo "(equal? '($o1) '($o2))" > test.scm;scheme -q < test.scm
+
+
+-------------------------------------------------------------------------------
 
 set disassembly-flavor intel
 set tui border-kind acs
