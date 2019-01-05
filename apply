@@ -1,4 +1,123 @@
 
+
+apply_nasm:
+  
+    push rbp
+    mov rbp, rsp
+    mov rdx, qword[rbp+3*8]      ;will be = the counter of params not in the vs
+    dec rdx                      ; remove function from the count
+    dec rdx                      ; remove vs from the counter
+    mov rdi, rbp
+    add rdi, 40
+    mov r12, rdx
+point_to_vs1:
+    cmp r12, 0
+    je start_counting
+    add rdi, 8
+    dec r12
+    jmp point_to_vs1              
+
+start_counting:
+    mov rdi, [rdi]                ; points to the vs list = rdi
+    mov r11, rdi                     
+
+    mov r10, 0                     
+count_vs:
+    cmp r11, SOB_NIL_ADDRESS
+    je done_count_vs
+    inc r10
+    CDR r11,r11
+    jmp count_vs
+                     
+done_count_vs:              
+    mov r8, qword[rbp+3*WORD_SIZE]         
+    dec r8
+    dec r8               
+    mov r11, r8                    
+    add r11, r10               ;all the args need to be pushed
+
+mov r13, rdi
+mov r15, r10
+mov r12,SOB_NIL_ADDRESS
+rev_list:
+    cmp r15, 0     ;r15 points to the list
+    je rev_list_end
+    CAR r14, r13
+    CDR r13, r13
+    MAKE_PAIR (r12 ,r14, r12)
+    dec r15
+    jmp rev_list
+rev_list_end:
+    push SOB_NIL_ADDRESS
+    mov r15, r10
+push_list:
+    cmp r15, 0                   ;r15 points to the list
+    je push_list_end
+    CAR r14, r12
+    CDR r12, r12
+    push r14
+    dec r15
+    jmp push_list
+
+push_list_end:
+    mov rsi, rdi
+push_reg_params:
+    cmp rdx,0
+    je push_reg_params_end
+    sub rsi, 8
+    push rsi
+    dec rdx
+    jmp push_reg_params
+push_reg_params_end:                 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    push r11
+    mov r13, qword[rbp+32]
+    CLOSURE_ENV rsi, r13
+    push rsi                      
+    push qword [rbp + 8]           
+    push qword[rbp]                
+    mov r10, qword[rbp+3*8]   
+
+shift_frame:
+    add r11, 5                     ; 5 = 1 (rbp) + 1 (r.a) + 1 (env) + 1 (nil = magic) + 1 (num_of_args)
+                                   ; r11 = size of the frame = size of shifting loop
+
+    mov r14, qword [rbp + 3*8]     ;num of args in old frame = rbp , r.a, env , num_of_args
+    add r14, 5                     ;5 = 1 (rbp) + 1 (r.a) + 1 (env) + 1 (magic) + 1 (num_of_args_old)
+    mov rsi,1                      ;rsi = index
+
+shifting_loop:
+    cmp r11, 0
+    je end_of_shifting_loop
+    sub r14, 1                     ; r14 = n--
+    mov r8, rsi                    ; r8 = index
+    shl r8, 3                      ; r8 = index * 8
+    neg r8
+    mov r9, qword[rbp + r8]        ; r9 = rbp - index * 8
+    mov qword[rbp + WORD_SIZE * r14], r9  ;rbp + 8 * (5 + N-args - index) = rbp - index * 8 = r9
+    inc rsi                        ; index ++
+    sub r11,1
+    jmp shifting_loop
+
+end_of_shifting_loop:
+    mov r9, r10      ; repair the stack pointer (new_frame_size + old_frame_size) - old_frame_size
+    add r9, 5
+    shl r9, 3                      ; Now - r9 = old_frame_size
+    add rsp, r9
+    ;chinole:
+    CLOSURE_CODE rbx ,r13          ; r12 holds the pointer to the sob closure
+    pop rbp
+    jmp rbx 
+  
+                                ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+
+
+
+
+
+---------------------------------------------------------------------------------------------
+
 push rbp
     mov rbp, rsp
 
