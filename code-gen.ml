@@ -260,7 +260,7 @@ let bound =1073741823 in
  string_of_int(Random.int bound);;
  
 
-   let rec generate_handle consts fvars e env previous_arg_number lambda_depth =match e with
+   let rec generate_handle consts fvars e env previous_arg_number lambda_depth params_so_far=match e with
   | Const'(x)-> let address = addressInConstTable consts x in
                 "mov rax, const_tbl+" ^ string_of_int address
   | Var'(VarFree(str)) -> let address = addressInFvarTable fvars str in
@@ -274,42 +274,42 @@ let bound =1073741823 in
   | Var'(VarBound (str ,major, minor)) ->"mov rax, qword [rbp + 2 * WORD_SIZE]
   mov rax, qword [rax + "^string_of_int major^"*WORD_SIZE]
   mov rax, qword [rax + "^string_of_int minor^"*WORD_SIZE]"
-   | Box' (v) -> generate_handle consts fvars (Var'(v)) env previous_arg_number lambda_depth ^ "
+   | Box' (v) -> generate_handle consts fvars (Var'(v)) env previous_arg_number lambda_depth params_so_far ^ "
     mov rbx, rax
     MALLOC rax,8
     mov rax,[rbx]
 "  
-  | BoxGet'(((v)) as vari)-> (generate_handle consts fvars (Var'(vari)) env previous_arg_number lambda_depth ) ^ "\n mov rax, qword [rax]"
+  | BoxGet'(((v)) as vari)-> (generate_handle consts fvars (Var'(vari)) env previous_arg_number lambda_depth params_so_far) ^ "\n mov rax, qword [rax]"
   | BoxSet'((v) as vari ,value) -> 
-    let  value_text =(generate_handle consts fvars value env previous_arg_number lambda_depth) ^ "\n push rax \n" in
-    let var_text = (generate_handle consts fvars  (Var'(vari)) env previous_arg_number lambda_depth) ^ " \n pop qword [rax]
+    let  value_text =(generate_handle consts fvars value env previous_arg_number lambda_depth params_so_far) ^ "\n push rax \n" in
+    let var_text = (generate_handle consts fvars  (Var'(vari)) env previous_arg_number lambda_depth params_so_far) ^ " \n pop qword [rax]
     mov rax, SOB_VOID_ADDRESS" in
     value_text ^ var_text
   | If'(test,dit,dif)-> 
    let else_suffix = random_suffix() in
    let exit_suffix = random_suffix() in
-    let test_text= (generate_handle consts fvars test env previous_arg_number lambda_depth ) ^ "\n cmp rax, SOB_FALSE_ADDRESS
+    let test_text= (generate_handle consts fvars test env previous_arg_number lambda_depth params_so_far) ^ "\n cmp rax, SOB_FALSE_ADDRESS
       je Lelse"^ else_suffix ^" \n" in
-    let dit_text = (generate_handle consts fvars dit env previous_arg_number lambda_depth) ^ "\n jmp Lexit"^ exit_suffix ^"
+    let dit_text = (generate_handle consts fvars dit env previous_arg_number lambda_depth params_so_far) ^ "\n jmp Lexit"^ exit_suffix ^"
       Lelse"^ else_suffix ^": \n" in 
-    let dif_text = (generate_handle consts fvars dif env previous_arg_number lambda_depth) ^ "\n Lexit"^ exit_suffix ^":" in
+    let dif_text = (generate_handle consts fvars dif env previous_arg_number lambda_depth params_so_far) ^ "\n Lexit"^ exit_suffix ^":" in
     test_text ^ dit_text ^ dif_text 
-  | Seq' (list) ->(gen_map list "\n" consts fvars env previous_arg_number lambda_depth)
-  | Set'(Var'(VarParam(_, minor)),value)-> (generate_handle consts fvars value env previous_arg_number lambda_depth) ^ "
+  | Seq' (list) ->(gen_map list "\n" consts fvars env previous_arg_number lambda_depth params_so_far) 
+  | Set'(Var'(VarParam(_, minor)),value)-> (generate_handle consts fvars value env previous_arg_number lambda_depth params_so_far) ^ "
   mov qword [rbp + (4 + "^string_of_int minor^")*WORD_SIZE], rax
   mov rax, SOB_VOID_ADDRESS"
-  | Set'(Var'(VarBound (str ,major, minor)),value)->(generate_handle consts fvars value env previous_arg_number lambda_depth)  ^
+  | Set'(Var'(VarBound (str ,major, minor)),value)->(generate_handle consts fvars value env previous_arg_number lambda_depth params_so_far)  ^
   "mov rbx, qword [rbp + 8 ∗ 2]
   mov rbx, qword [rbx + 8 ∗"^string_of_int  major^"]
   mov qword [rbx + 8 ∗"^string_of_int  minor^"], rax
   mov rax, SOB_VOID_ADDRESS"
   | Set'(Var'(VarFree(str)),value)->
-  let value_text = (generate_handle consts fvars value env previous_arg_number lambda_depth) in
+  let value_text = (generate_handle consts fvars value env previous_arg_number lambda_depth params_so_far) in
   let address = addressInFvarTable fvars str in
   value_text^"\n mov qword [fvar_tbl+" ^ string_of_int address ^"*WORD_SIZE], rax
   mov rax, SOB_VOID_ADDRESS"
   | Def'(Var'(VarFree(str)) , value)-> 
-  let value_text = (generate_handle consts fvars value env previous_arg_number lambda_depth) in
+  let value_text = (generate_handle consts fvars value env previous_arg_number lambda_depth params_so_far) in
   let address =  addressInFvarTable fvars str in
   value_text ^ "\n" ^
    "mov [fvar_tbl+" ^ (string_of_int address) ^"*WORD_SIZE], rax \n"^ "mov rax, SOB_VOID_ADDRESS \n"
@@ -318,7 +318,7 @@ let bound =1073741823 in
       let suffix = random_suffix() in
       ((gen_map list ("
   cmp rax, SOB_FALSE_ADDRESS
-  jne LexitOr"^suffix^"\n") consts fvars env previous_arg_number lambda_depth) ^ "
+  jne LexitOr"^suffix^"\n") consts fvars env previous_arg_number lambda_depth params_so_far) ^ "
   LexitOr"^suffix^":" )
 
  | LambdaSimple' (params , body) -> 
@@ -327,6 +327,8 @@ let bound =1073741823 in
       let ext_env_size = old_env_size + 1 in
       let ext_env_size_address = string_of_int(ext_env_size * 8) in
       let params_len = (List.length params) in 
+      let params_so_far = params_so_far + params_len in
+      (* let params_so_far_address = 8 * params_so_far in  *)
       let suffix = random_suffix() in
       let code ="
      ; allocate size for the whole extenv
@@ -342,7 +344,7 @@ let bound =1073741823 in
         MALLOC r14, r14      ; allocate size for the extenv[0] for params
         mov qword[r15], r14
 
-                               ;take_params into extenv[0]
+      take_params"^suffix^":                         ;take_params into extenv[0]
         %assign i 0
         %rep "^ string_of_int previous_arg_number ^"
         mov r13, 32
@@ -353,7 +355,9 @@ let bound =1073741823 in
         mov [r14 + r12], r13       ;  mov[r14+ i*8] , r13
         %assign i i+1
         %endrep
-        %assign i 0                                    ;take_old_array_cells - extenv[j] = env[i]
+
+  take_old_array_cells"^suffix^":
+        %assign i 0                                    ; extenv[j] = env[i]
         %rep "^ string_of_int old_env_size ^"
         mov r13, 16
         add r13, i*WORD_SIZE
@@ -375,7 +379,7 @@ let bound =1073741823 in
       Lcode"^suffix^":
         push rbp
         mov rbp, rsp
-        "^ generate_handle consts fvars body env params_len ext_env_size  ^"
+        "^ generate_handle consts fvars body env params_len ext_env_size params_so_far  ^"
         leave
         ret
 
@@ -390,6 +394,7 @@ let bound =1073741823 in
       let ext_env_size_address = string_of_int(ext_env_size * 8) in
       let params_len = (List.length params) in 
       let params_len_plus_one = params_len +1 in
+      let params_so_far = params_so_far + params_len_plus_one in
       let suffix = random_suffix() in
       let code ="
       ; allocate size for the whole extenv
@@ -405,7 +410,7 @@ let bound =1073741823 in
         MALLOC r14, r14     ; allocate size for the extenv[0] for params
         mov qword[r15], r14
 
-                                                     ;take_params into extenv[0]
+      take_params"^suffix^":                                            ;take_params into extenv[0]
         %assign i 0
         %rep "^ string_of_int previous_arg_number ^"
         mov r13, 32
@@ -416,7 +421,9 @@ let bound =1073741823 in
         mov [r14 + r12], r13       ;  mov[r14+ i*8] , r13
         %assign i i+1
         %endrep
-        %assign i 0                              ;take_old_array_cells - extenv[j] = env[i]
+
+   take_old_array_cells" ^suffix^": 
+        %assign i 0                             ; extenv[j] = env[i]
         %rep "^ string_of_int old_env_size ^"
         mov r13, 16
         add r13, i*WORD_SIZE
@@ -470,7 +477,7 @@ let bound =1073741823 in
 
 
   done_fix"^ suffix ^":
-   " ^ (generate_handle consts fvars body (env+1) params_len_plus_one ext_env_size) ^"
+   " ^ (generate_handle consts fvars body (env+1) params_len_plus_one ext_env_size params_so_far) ^"
 
     mov   rbp, rsp    
     pop   rbp
@@ -487,9 +494,9 @@ let bound =1073741823 in
           push qword SOB_NIL_ADDRESS  
           " in
           let rev = List.rev arg_list in
-          let args_text = gen_map rev "\n push rax \n" consts fvars env  previous_arg_number lambda_depth in
+          let args_text = gen_map rev "\n push rax \n" consts fvars env  previous_arg_number lambda_depth params_so_far in
           let post_args = args_text ^ "\n push "^ string_of_int (List.length arg_list)^" \n" in
-          let proc_text = generate_handle consts fvars proc env previous_arg_number lambda_depth in
+          let proc_text = generate_handle consts fvars proc env previous_arg_number lambda_depth params_so_far in
           let with_proc = post_args ^ proc_text in
           let assembly_check = 
           " 
@@ -536,12 +543,12 @@ let bound =1073741823 in
   |_->""
   
 
-  and gen_map list code_to_write consts fvars env previous_arg_number lambda_depth = 
-  let mapped = List.map (fun(elem)-> (generate_handle consts fvars elem env previous_arg_number lambda_depth) ^ code_to_write) list in
+  and gen_map list code_to_write consts fvars env previous_arg_number lambda_depth params_so_far = 
+  let mapped = List.map (fun(elem)-> (generate_handle consts fvars elem env previous_arg_number lambda_depth params_so_far) ^ code_to_write) list in
   (list_to_string mapped) ;; 
 
    let generate consts fvars e =
     (* let counter : int ref = ref 0 in *)
-   generate_handle consts fvars e 1 0 0 ;;
+   generate_handle consts fvars e 1 0 0 0 ;;
 
 end;;
