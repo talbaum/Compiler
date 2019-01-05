@@ -40,7 +40,7 @@ mov r13, rdi
 mov r15, r10
 mov r12,SOB_NIL_ADDRESS
 rev_list:
-    cmp r15, 0     ;r15 points to the list
+    cmp r15, 0               ;r15 points to the list
     je rev_list_end
     CAR r14, r13
     CDR r13, r13
@@ -77,43 +77,44 @@ push_reg_params_end:                 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     push qword[rbp]                
     mov r10, qword[rbp+3*8]   
 
-shift_frame:
-    add r11, 5                     ; 5 = 1 (rbp) + 1 (r.a) + 1 (env) + 1 (nil = magic) + 1 (num_of_args)
-                                   ; r11 = size of the frame = size of shifting loop
+shift_frame_macro_code:
+    add r11, 5                 
+	;push rax
+	mov rax, qword [rbp+3*WORD_SIZE]
+	add rax, 5
+    mov rbx , 1
 
-    mov r14, qword [rbp + 3*8]     ;num of args in old frame = rbp , r.a, env , num_of_args
-    add r14, 5                     ;5 = 1 (rbp) + 1 (r.a) + 1 (env) + 1 (magic) + 1 (num_of_args_old)
-    mov rsi,1                      ;rsi = index
+;	dec rax
+;	mov r8, qword[rbp-WORD_SIZE*i]
+;	mov [rbp+WORD_SIZE*rax], r8
 
-shifting_loop:
-    cmp r11, 0
-    je end_of_shifting_loop
-    sub r14, 1                     ; r14 = n--
-    mov r8, rsi                    ; r8 = index
-    shl r8, 3                      ; r8 = index * 8
-    neg r8
-    mov r9, qword[rbp + r8]        ; r9 = rbp - index * 8
-    mov qword[rbp + WORD_SIZE * r14], r9  ;rbp + 8 * (5 + N-args - index) = rbp - index * 8 = r9
-    inc rsi                        ; index ++
-    sub r11,1
-    jmp shifting_loop
+fix_stack_loop:
+    cmp r11,0
+    je done_fix_loop
+	dec rax
+    mov rcx, rbx
+    shl rcx, 3
+    neg rcx
+   	mov r8, qword[rbp+rcx]
+	mov [rbp+WORD_SIZE*rax], r8
+    inc rbx
+    dec r11
+    jmp fix_stack_loop
 
-end_of_shifting_loop:
-    mov r9, r10      ; repair the stack pointer (new_frame_size + old_frame_size) - old_frame_size
-    add r9, 5
-    shl r9, 3                      ; Now - r9 = old_frame_size
-    add rsp, r9
+	;pop rax
+
+done_fix_loop:
+    add r10, 5
+    shl r10, 3                     
+    add rsp, r10
     ;chinole:
-    CLOSURE_CODE rbx ,r13          ; r12 holds the pointer to the sob closure
+    CLOSURE_CODE rsi ,r13          
     pop rbp
-    jmp rbx 
-  
-                                ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    jmp rsi
 
-
-
-
-
+invalid:
+leave
+ret
 
 
 ---------------------------------------------------------------------------------------------
