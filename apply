@@ -1,4 +1,118 @@
 
+push rbp
+    mov rbp, rsp
+
+    push SOB_NIL_ADDRESS
+    mov rcx , qword [rbp + 24 ] ; n 
+
+    mov r9, rcx
+    sub rcx, 2
+    mov rbx, rcx
+    add r9 , 3
+    shl r9, 3
+    mov r8, qword[rbp + r9] ;the list arg
+    mov r14, 0
+
+
+.loopcountlist:; count the element in the list (last arg)
+    cmp r8 , SOB_NIL_ADDRESS
+    je .endcountlist
+    add r14, 1
+    CDR rax, r8      
+    mov r8, rax
+    jmp .loopcountlist
+
+.endcountlist: ;
+   ; mov r8, qword[rbp + r9] ;the list arg
+
+    mov r15, r9
+    mov r13, r14
+    mov r9, r14  
+    sub r13, 1      ; cdr of cdr of cdr....
+    mov r10, r13
+
+.insertlist: ; insert in revers the elements in the list
+ mov r8, qword[rbp + r15] ;the list arg
+    mov r13 , r10
+    cmp r9, 0  ; number of iterator
+    je .endinsertlist
+
+    .loopcdr:
+        cmp r13, 0 ; if i have only one elemnt in the list
+        je .findcar
+        CDR rax, r8
+        sub r13, 1
+        mov r8, rax
+        jmp .loopcdr
+
+        .findcar:
+        CAR rax,r8;(3, nil)
+        push rax
+        sub r10, 1
+        sub r9, 1
+        jmp .insertlist
+
+.endinsertlist: 
+  mov r10,rbx ;rbx=number elements not in list
+  add r10,r14 ;total arg - free and in list
+
+.insert_rest_arg:
+    cmp rbx,0
+    je .end_insert_rest_arg 
+    sub r15, 8
+
+    push qword [rbp + r15]
+    sub rbx,1
+    jmp .insert_rest_arg
+
+.end_insert_rest_arg: ;
+    push r10
+    sub r15, 8
+    mov rax, qword[rbp+r15]
+
+    CLOSURE_ENV rbx ,rax
+    push rbx 
+    push qword [rbp + 8] 
+    push qword[rbp]
+    add r10, 5
+
+
+
+    mov rcx ,r10 ;; for loop
+    mov r13, PARAM_COUNT
+    mov r12 , PARAM_COUNT
+    add r12 , 5
+    mov r15 , 1 ;; for the right place
+
+       shaked_star3: ;; shifting
+        dec r12
+        mov r9 , r15
+        shl r9,3
+        neg r9
+        mov r8 , qword[rbp + r9]
+        mov qword[rbp + WORD_SIZE * r12] , r8
+       inc r15
+
+    loop shaked_star3
+
+    mov r8, r13;%2 ;from 
+    add r8, 5
+    shl r8, 3
+    add rsp, r8
+
+    ;SHIFT_FRAME r11
+    CLOSURE_CODE rbx ,rax
+    pop rbp
+    jmp rbx
+
+
+
+
+
+
+
+
+-----------------------------------------------------------------------------------------------------------------
 apply_:
 
     push rbp
