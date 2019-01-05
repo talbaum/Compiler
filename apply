@@ -1,0 +1,111 @@
+
+apply_:
+
+    push rbp
+    mov rbp, rsp
+    
+    push SOB_NIL_ADDRESS
+    mov r10, 0                     ;r10 represents COUNTER  for num of elements in argn=proper list
+
+    mov r8, qword[rbp+3*8]         ; rbp + 3*8 = num of args
+    add r8, 3                      ; nedd to jump (3 + num_of_args) *8 from rbp
+    shl r8, 3                      ; now r8 = (3 + num_of_args) *8
+    mov r9, qword[rbp+r8]          ; r9 = PTR (argn)              #############################################
+
+    mov r8, qword[rbp+3*8]         ; rbp + 3*8 = num of args 
+    sub r8, 2                      ; r8 = num of args beside argn (the list) and the name of fun_to_apply #############################################
+                                
+
+    mov r11, r9                    ; r11 = PTR (argn) 
+.count_list_args:
+    cmp r11, SOB_NIL_ADDRESS
+    je .end_count_list_args
+    inc r10                        ;counting
+    CDR r14, r11                   ;get cdr element in r14
+    mov r11, r14                   ;copy r14 to r11 for next loop compare
+    jmp .count_list_args
+
+.end_count_list_args:              ;now :   r9- PTR (argn), r8- num of args beside argn, r10- num of elements in argn
+    mov r11, r8                    ;r11 = num of args beside argn
+    add r11, r10                   ;r11 = num of args beside argn + num of elements in argn #############################################
+
+
+
+.loop_of_pushing_argn_arguments:   ; n = r10 = num of elements in argn
+    mov rsi, r9                    ; rsi = PTR(argn)
+    cmp r10, 0
+    je .end_of_loop_of_pushing_argn_arguments
+    mov rdi, r10                   ; rdi = n = r10 = num of elements in argn
+    sub rdi, 1                     ; rdi = n-1
+.loop_car_cdr:
+    cmp rdi,0
+    je .end_of_loop_car_cdr
+    CDR r14, rsi
+    mov rsi, r14                   ; prepare rsi for next cdr/car action
+    sub rdi, 1                     ; (n-1) --
+    jmp .loop_car_cdr
+
+.end_of_loop_car_cdr:
+    CAR r14, rsi
+    mov rsi, r14
+    push rsi                       ; push arg from argn 
+    sub r10, 1                     ; n--
+    jmp .loop_of_pushing_argn_arguments
+
+.end_of_loop_of_pushing_argn_arguments:
+    mov rsi, r8                    ; For being sure: rsi = r8 = num of args beside argn
+                                   ; n = rsi
+    mov r13, rsi
+    add rsi, 4                     ; rsi = 1 (r.a) + 1 (env) + 1 (num_of_args) + 1(func_name) + num of args beside argn
+    shl rsi, 8                     ; rsi = 8 * rsi = distance from rbp
+    
+.loop_push_args_1_n_minus_1:
+    cmp r13, 0
+    je .end_of_loop_push_args_1_n_minus_1
+  
+    mov r12, qword[rbp + rsi]      ; r12 = [rbp + distance]
+    push r12                       ; push arg
+    sub r13, 1                     ; n--
+    sub rsi,8                      ; go to next arg to push
+    jmp .loop_push_args_1_n_minus_1
+
+.end_of_loop_push_args_1_n_minus_1:
+
+    
+    push r11                       ;push num_of_args
+
+    mov r12, qword[rbp + 4*8]      ;r12 = func name
+    CLOSURE_ENV rbx, r12
+    push rbx                       ;push env (func name inside)
+    push qword [rbp + 8]           ;push return address
+    push qword[rbp]                ;push old rbp
+
+.shift_frame:
+    add r11, 5                     ; 5 = 1 (rbp) + 1 (r.a) + 1 (env) + 1 (nil = magic) + 1 (num_of_args)
+                                   ; r11 = size of the frame = size of shifting loop
+
+    mov r14, qword [rbp + 3*8]     ;num of args in old frame = rbp , r.a, env , num_of_args
+    add r14, 5                     ;5 = 1 (rbp) + 1 (r.a) + 1 (env) + 1 (magic) + 1 (num_of_args_old)
+    mov rsi,1                      ;rsi = index
+
+.shifting_loop:
+    cmp r11, 0
+    je .end_of_shifting_loop
+    sub r14, 1                     ; r14 = n--
+    mov r8, rsi                    ; r8 = index
+    shl r8, 3                      ; r8 = index * 8
+    mov r9, qword[rbp - r8]        ; r9 = rbp - index * 8
+    mov qword[rbp + WORD_SIZE * r14], r9  ;rbp + 8 * (5 + N-args - index) = rbp - index * 8 = r9
+    inc rsi                        ; index ++
+    sub r11,1
+    jmp .shifting_loop
+
+.end_of_shifting_loop:
+    mov r9, qword [rbp + 3*8]      ; repair the stack pointer (new_frame_size + old_frame_size) - old_frame_size
+    add r9, 5
+    shl r9, 3                      ; Now - r9 = old_frame_size
+    add rsp, r9
+
+    CLOSURE_CODE rbx ,r12          ; r12 holds the pointer to the sob closure
+    pop rbp
+    jmp rbx 
