@@ -86,6 +86,53 @@
 	add rsp, 8
 %endmacro
 	
+
+%macro SHIFT_FRAME 1 ; %1 = size of frame (constant)
+	push rax
+	mov rax, qword [rbp+3*WORD_SIZE]
+	add rax, 5
+%assign i 1
+%rep %1
+	dec rax
+	mov r8, qword[rbp-WORD_SIZE*i]
+	mov [rbp+WORD_SIZE*rax], r8
+%assign i i+1
+%endrep
+	pop rax
+%endmacro
+
+
+
+%macro SHIFT_FRAMESKI 1 ; %1 = size of frame (not constant)
+	push r8
+	push r10
+	push r9
+	push rax
+	mov rax, qword [rbp+3*WORD_SIZE]
+	add rax, 5
+	mov r9,1
+	mov r10,0
+%%frame_loop:
+	cmp r10 ,%1
+	je %%end_frame_loop
+	dec rax
+	shl r9,3
+	neg r9
+	mov r8, qword[rbp+r9]
+	mov [rbp+WORD_SIZE*rax], r8
+	neg r9
+	shr r9, 3
+	inc r9
+	inc r10
+	jmp %%frame_loop
+
+%%end_frame_loop:
+	pop rax
+	pop r9
+	pop r10
+	pop r8
+%endmacro
+
 ; Creates a short SOB with the
 ; value %2
 ; Returns the result in register %1
@@ -104,6 +151,8 @@
 	mov qword [%1+TYPE_SIZE], %2
 %endmacro
 
+
+%define PARAM_COUNT qword [rbp+3*WORD_SIZE]
 %define MAKE_INT(r,val) MAKE_LONG_VALUE r, val, T_INTEGER
 %define MAKE_FLOAT(r,val) MAKE_LONG_VALUE r, val, T_FLOAT
 %define MAKE_CHAR(r,val) MAKE_CHAR_VALUE r, val
@@ -122,6 +171,9 @@
 	db %1
 	%%end_str:
 %endmacro
+
+
+
 
 ; Create a string of length %2
 ; from char %3.
@@ -171,10 +223,10 @@
 %macro MAKE_LITERAL_VECTOR 0-*
 	db T_VECTOR
 	dq %0
-	%rep %0
+%rep %0
 	dq %1
-	%rotate 1
-	%endrep
+%rotate 1
+%endrep
 %endmacro
 ;;; Creates a SOB with tag %2 
 ;;; from two pointers %3 and %4
