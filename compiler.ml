@@ -58,25 +58,20 @@ let make_prologue consts_tbl fvars_tbl =
 ;;; All the macros and the scheme-object printing procedure
 ;;; are defined in compiler.s
 %include \"compiler.s\"
-
 section .bss
 malloc_pointer:
     resq 1
-
 section .data
 const_tbl:
 " ^ (String.concat "\n" (List.map make_constant consts_tbl)) ^ "
-
 ;;; These macro definitions are required for the primitive
 ;;; definitions in the epilogue to work properly
 %define SOB_VOID_ADDRESS " ^ get_const_address Void ^ "
 %define SOB_NIL_ADDRESS " ^ get_const_address (Sexpr Nil) ^ "
 %define SOB_FALSE_ADDRESS " ^ get_const_address (Sexpr (Bool false)) ^ "
 %define SOB_TRUE_ADDRESS " ^ get_const_address (Sexpr (Bool true)) ^ "
-
 fvar_tbl:
 " ^ (String.concat "\n" (List.map (fun _ -> "dq T_UNDEFINED") fvars_tbl)) ^ "
-
 section .text
 global main
 main:
@@ -84,7 +79,6 @@ main:
     mov rdi, MB(100)
     call malloc
     mov [malloc_pointer], rax
-
     ;; Set up the dummy activation frame
     ;; The dummy return address is T_UNDEFINED
     ;; (which a is a macro for 0) so that returning
@@ -98,7 +92,6 @@ main:
     call code_fragment
     add rsp, 4*8
     ret
-
 code_fragment:
     ;; Set up the primitive stdlib fvars:
     ;; Since the primtive procedures are defined in assembly,
@@ -114,7 +107,6 @@ List.map (fun(x)->(x))
 
 
 let epilogue = "
-
 car_nasm:
     push rbp
     mov rbp, rsp
@@ -124,7 +116,6 @@ car_nasm:
     mov rax, qword[rsi+1]
     leave
     ret
-
 cdr_nasm:
     push rbp
     mov rbp, rsp
@@ -134,8 +125,6 @@ cdr_nasm:
     mov rax, qword[rsi+1+8]
     leave
     ret
-
-
 set_car:
     push rbp
     mov rbp, rsp
@@ -147,8 +136,6 @@ set_car:
     mov rax, SOB_VOID_ADDRESS
     leave
     ret
-
-
 set_cdr:
     push rbp
     mov rbp, rsp
@@ -160,8 +147,6 @@ set_cdr:
     mov rax, SOB_VOID_ADDRESS
     leave
     ret
-
-
 cons_nasm:
     push rbp
     mov rbp, rsp
@@ -174,62 +159,123 @@ cons_nasm:
     leave
     ret
 
+
+
 apply_nasm:
-   nop
-   ; push rbp
-   ; mov rbp, rsp
-   ; push rax
-   ; push rbx
-   ; mov rax, PVAR(-1)   ;PVAR(-1) - num of args
-  ;  dec rax
- ;   mov rdi, PVAR(0)    ;PVAR(0) - proc
-                        ;PVAR(..) - args    
+  
+    push rbp
+    mov rbp, rsp
+    push SOB_NIL_ADDRESS
+    mov rdx, qword[rbp+3*8]      ;will be = the counter of params not in the vs
+    sub rdx,2
+    mov rsi, rdx
+    mov rdi, rbp
+    add rdi, 40
+    mov r12, rdx
 
-;apply_loop:
- ; cmp rax, 0
- ; je after_apply_loop
- ; mov rbx, PVAR(rax)
- ; mov rbx,qword[rbx]
- ; mov bl,bh
- ; mov bh, 0
- ; push rbx
- ; dec rax
- ; jmp apply_loop
+point_to_vs1:
+    cmp r12, 0
+    je start_counting
+    add rdi, 8
+    dec r12
+    jmp point_to_vs1              
 
-;after_apply_loop:
-  ;pop rbx
-  ;pop rax
-  ;call rdi ;pop rbp pop rsp , mabye need to move to rax tha ans
-  ;leave 
-  ;ret
+start_counting:
+    mov r12, [rdi]                ; points to the vs list = rdi           
+    mov r10, 0                     
+count_vs:
+    cmp r12, SOB_NIL_ADDRESS
+    je done_count_vs
+    add r10, 1
+    CDR rax,r12
+    mov r12,rax
+    jmp count_vs
+                     
+done_count_vs: 
+    mov r15, r10
+    mov rcx, r10
+    ;sub r15, 1
+    mov r8, r15             
+start_push:
+    mov r12, qword[rdi]      ;r12 is the list
+    cmp rcx, 0
+    je rev_list_end
 
+mov r13, r12    
+mov r8,SOB_NIL_ADDRESS
+rev_list1:
+    cmp r15, 0               ;r15 points to the list
+    je rev_list_end1
+    CAR r14, r13
+    CDR rax, r13
+    mov r13, rax
+    MAKE_PAIR (rax ,r14, r8)
+    mov r8, rax
+    dec r15
+    jmp rev_list1
+rev_list_end1:
+mov r15, r10
+push_list1:
+    cmp r15, 0                   ;r15 points to the list
+    je push_list_end1
+    CAR r14, r8
+    push r14
+    CDR rax, r8
+    mov r8, rax
+    dec r15
+    jmp push_list1
+push_list_end1:
 
-;
-;      %rotate 1
-;    %endrep
-; TODO 
-;%macro apply_nasm 2-*
-; %rep %0   ;; %0 is num_of_params maybe do (%0 -1)
-;;TODO: body of apply - need to push all args to stack and then call the proc at %1
-;%rotate 1
-;%endrep
-;call %1
-;%endmacro
+rev_list_end:
+    mov r8,rsi
+    add r8, r10 
+
+    mov r13,rdi
+    sub r13, rbp
+push_reg_params_list:
+    cmp rsi, 0                   ;r15 points to the list
+    je push_list_end
+    sub r13,8
+    push qword[rbp+r13]
+    dec rsi
+    jmp push_reg_params_list
+
+push_list_end:
+    push r8
+    sub r13,8
+    mov rdi, qword[rbp+r13]
+    CLOSURE_ENV rsi, rdi
+    push rsi                      
+    push qword [rbp + 8]           
+    push qword[rbp]                
+    mov rdx, r8
+    add rdx, 5
+    mov r15, qword [rbp + 3*8] 
+    SHIFT_FRAMESKI rdx
+tuli:
+    add r15,5
+    shl r15,3
+    add rsp,r15
+    CLOSURE_CODE rsi,rdi
+    pop rbp
+    jmp rsi
 
 invalid:
 leave
 ret
+
+
 ";;
 exception X_missing_input_file;;
 
 try
   let infile = Sys.argv.(1) in
-  let code =  (*(file_to_string "stdlib.scm") ^*)  (file_to_string infile) in
+  let code =  (*(file_to_string "stdlib.scm") ^ *)(file_to_string infile) in
   let asts = string_to_asts code in
   let consts_tbl = Code_Gen.make_consts_tbl asts in
   let fvars_tbl = Code_Gen.make_fvars_tbl asts in
   let generate = Code_Gen.generate consts_tbl fvars_tbl in
-  let code_fragment = String.concat "\n\n"
+  let code_fragment = String.concat "\n   \n"
                         (List.map
                            (fun ast -> (generate ast) ^ "\n    call write_sob_if_not_void")
                            asts) in
@@ -243,6 +289,4 @@ with Invalid_argument(x) -> raise X_missing_input_file;;
 
 
 (**------------------------------------------------------------------------------------------------------- *)
-
-
 
