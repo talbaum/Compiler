@@ -324,6 +324,7 @@ let bound =1073741823 in
  | LambdaSimple' (params , body) -> 
       let () =Random.self_init() in 
       let old_env_size = env in
+      (* let old_env_size_address =string_of_int (8 * old_env_size) in  *)
       let ext_env_size = old_env_size + 1 in
       let ext_env_size_address = string_of_int(ext_env_size * 8) in
       let params_len = (List.length params) in 
@@ -332,6 +333,7 @@ let bound =1073741823 in
       let suffix = random_suffix() in
       let code ="
      ; allocate size for the whole extenv
+     start"^suffix^": 
       mov r15, " ^ext_env_size_address ^" 
       MALLOC r15, r15
       mov r14, "^string_of_int old_env_size ^"
@@ -371,7 +373,7 @@ let bound =1073741823 in
        jmp create_closure"^suffix^"
 
       no_params"^suffix^":
-        mov r15 , qword SOB_NIL_ADDRESS
+        mov r15 ,  SOB_NIL_ADDRESS
       create_closure"^suffix^":
         MAKE_CLOSURE(rax, r15, Lcode"^suffix^")
         jmp Lcont"^suffix^"
