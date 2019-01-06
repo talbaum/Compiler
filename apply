@@ -1,15 +1,16 @@
 
-
 apply_nasm:
   
     push rbp
     mov rbp, rsp
+    push SOB_NIL_ADDRESS
     mov rdx, qword[rbp+3*8]      ;will be = the counter of params not in the vs
-    dec rdx                      ; remove function from the count
-    dec rdx                      ; remove vs from the counter
+    sub rdx,2
+    mov rsi, rdx
     mov rdi, rbp
     add rdi, 40
     mov r12, rdx
+
 point_to_vs1:
     cmp r12, 0
     je start_counting
@@ -18,328 +19,81 @@ point_to_vs1:
     jmp point_to_vs1              
 
 start_counting:
-    mov rdi, [rdi]                ; points to the vs list = rdi
-    mov r11, rdi                     
-
+    mov r12, [rdi]                ; points to the vs list = rdi           
     mov r10, 0                     
 count_vs:
-    cmp r11, SOB_NIL_ADDRESS
+    cmp r12, SOB_NIL_ADDRESS
     je done_count_vs
-    inc r10
-    CDR r11,r11
+    add r10, 1
+    CDR rax,r12
+    mov r12,rax
     jmp count_vs
                      
-done_count_vs:              
-    mov r8, qword[rbp+3*WORD_SIZE]         
-    dec r8
-    dec r8               
-    mov r11, r8                    
-    add r11, r10               ;all the args need to be pushed
-
-mov r13, rdi
-mov r15, r10
-mov r12,SOB_NIL_ADDRESS
-rev_list:
-    cmp r15, 0               ;r15 points to the list
-    je rev_list_end
-    CAR r14, r13
-    CDR r13, r13
-    MAKE_PAIR (r12 ,r14, r12)
-    dec r15
-    jmp rev_list
-rev_list_end:
-    push SOB_NIL_ADDRESS
+done_count_vs: 
     mov r15, r10
-push_list:
-    cmp r15, 0                   ;r15 points to the list
-    je push_list_end
-    CAR r14, r12
-    CDR r12, r12
-    push r14
+    mov rcx, r10
+    ;sub r15, 1
+    mov r8, r15             
+start_push:
+    mov r12, qword[rdi]      ;r12 is the list
+    cmp rcx, 0
+    je rev_list_end
+
+mov r13, r12    
+mov r8,SOB_NIL_ADDRESS
+rev_list1:
+    cmp r15, 0               ;r15 points to the list
+    je rev_list_end1
+    CAR r14, r13
+    CDR rax, r13
+    mov r13, rax
+    MAKE_PAIR (rax ,r14, r8)
+    mov r8, rax
     dec r15
-    jmp push_list
+    jmp rev_list1
+rev_list_end1:
+mov r15, r10
+push_list1:
+    cmp r15, 0                   ;r15 points to the list
+    je push_list_end1
+    CAR r14, r8
+    push r14
+    CDR rax, r8
+    mov r8, rax
+    dec r15
+    jmp push_list1
+push_list_end1:
+
+rev_list_end:
+    mov r8,rsi
+    add r8, r10 
+
+    mov r13,rdi
+    sub r13, rbp
+push_reg_params_list:
+    cmp rsi, 0                   ;r15 points to the list
+    je push_list_end
+    sub r13,8
+    push qword[rbp+r13]
+    dec rsi
+    jmp push_reg_params_list
 
 push_list_end:
-    mov rsi, rdi
-push_reg_params:
-    cmp rdx,0
-    je push_reg_params_end
-    sub rsi, 8
-    push rsi
-    dec rdx
-    jmp push_reg_params
-push_reg_params_end:                 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    push r11
-    mov r13, qword[rbp+32]
-    CLOSURE_ENV rsi, r13
+    push r8
+    sub r13,8
+    mov rdi, qword[rbp+r13]
+    CLOSURE_ENV rsi, rdi
     push rsi                      
     push qword [rbp + 8]           
     push qword[rbp]                
-    mov r10, qword[rbp+3*8]   
-
-shift_frame_macro_code:
-    add r11, 5                 
-	;push rax
-	mov rax, qword [rbp+3*WORD_SIZE]
-	add rax, 5
-    mov rbx , 1
-
-;	dec rax
-;	mov r8, qword[rbp-WORD_SIZE*i]
-;	mov [rbp+WORD_SIZE*rax], r8
-
-fix_stack_loop:
-    cmp r11,0
-    je done_fix_loop
-	dec rax
-    mov rcx, rbx
-    shl rcx, 3
-    neg rcx
-   	mov r8, qword[rbp+rcx]
-	mov [rbp+WORD_SIZE*rax], r8
-    inc rbx
-    dec r11
-    jmp fix_stack_loop
-
-	;pop rax
-
-done_fix_loop:
-    add r10, 5
-    shl r10, 3                     
-    add rsp, r10
-    ;chinole:
-    CLOSURE_CODE rsi ,r13          
+    mov rdx, r8
+    add rdx, 5
+    mov r15, qword [rbp + 3*8] 
+    SHIFT_FRAMESKI rdx
+tuli:
+    add r15,5
+    shl r15,3
+    add rsp,r15
+    CLOSURE_CODE rsi,rdi
     pop rbp
     jmp rsi
-
-invalid:
-leave
-ret
-
-
----------------------------------------------------------------------------------------------
-
-push rbp
-    mov rbp, rsp
-
-    push SOB_NIL_ADDRESS
-    mov rcx , qword [rbp + 24 ] ; n 
-
-    mov r9, rcx
-    sub rcx, 2
-    mov rbx, rcx
-    add r9 , 3
-    shl r9, 3
-    mov r8, qword[rbp + r9] ;the list arg
-    mov r14, 0
-
-
-.loopcountlist:; count the element in the list (last arg)
-    cmp r8 , SOB_NIL_ADDRESS
-    je .endcountlist
-    add r14, 1
-    CDR rax, r8      
-    mov r8, rax
-    jmp .loopcountlist
-
-.endcountlist: ;
-   ; mov r8, qword[rbp + r9] ;the list arg
-
-    mov r15, r9
-    mov r13, r14
-    mov r9, r14  
-    sub r13, 1      ; cdr of cdr of cdr....
-    mov r10, r13
-
-.insertlist: ; insert in revers the elements in the list
- mov r8, qword[rbp + r15] ;the list arg
-    mov r13 , r10
-    cmp r9, 0  ; number of iterator
-    je .endinsertlist
-
-    .loopcdr:
-        cmp r13, 0 ; if i have only one elemnt in the list
-        je .findcar
-        CDR rax, r8
-        sub r13, 1
-        mov r8, rax
-        jmp .loopcdr
-
-        .findcar:
-        CAR rax,r8;(3, nil)
-        push rax
-        sub r10, 1
-        sub r9, 1
-        jmp .insertlist
-
-.endinsertlist: 
-  mov r10,rbx ;rbx=number elements not in list
-  add r10,r14 ;total arg - free and in list
-
-.insert_rest_arg:
-    cmp rbx,0
-    je .end_insert_rest_arg 
-    sub r15, 8
-
-    push qword [rbp + r15]
-    sub rbx,1
-    jmp .insert_rest_arg
-
-.end_insert_rest_arg: ;
-    push r10
-    sub r15, 8
-    mov rax, qword[rbp+r15]
-
-    CLOSURE_ENV rbx ,rax
-    push rbx 
-    push qword [rbp + 8] 
-    push qword[rbp]
-    add r10, 5
-
-
-
-    mov rcx ,r10 ;; for loop
-    mov r13, PARAM_COUNT
-    mov r12 , PARAM_COUNT
-    add r12 , 5
-    mov r15 , 1 ;; for the right place
-
-       shaked_star3: ;; shifting
-        dec r12
-        mov r9 , r15
-        shl r9,3
-        neg r9
-        mov r8 , qword[rbp + r9]
-        mov qword[rbp + WORD_SIZE * r12] , r8
-       inc r15
-
-    loop shaked_star3
-
-    mov r8, r13;%2 ;from 
-    add r8, 5
-    shl r8, 3
-    add rsp, r8
-
-    ;SHIFT_FRAME r11
-    CLOSURE_CODE rbx ,rax
-    pop rbp
-    jmp rbx
-
-
-
-
-
-
-
-
------------------------------------------------------------------------------------------------------------------
-apply_:
-
-    push rbp
-    mov rbp, rsp
-    
-    push SOB_NIL_ADDRESS
-    mov r10, 0                     ;r10 represents COUNTER  for num of elements in argn=proper list
-
-    mov r8, qword[rbp+3*8]         ; rbp + 3*8 = num of args
-    add r8, 3                      ; nedd to jump (3 + num_of_args) *8 from rbp
-    shl r8, 3                      ; now r8 = (3 + num_of_args) *8
-    mov r9, qword[rbp+r8]          ; r9 = PTR (argn)              #############################################
-
-    mov r8, qword[rbp+3*8]         ; rbp + 3*8 = num of args 
-    sub r8, 2                      ; r8 = num of args beside argn (the list) and the name of fun_to_apply #############################################
-                                
-
-    mov r11, r9                    ; r11 = PTR (argn) 
-.count_list_args:
-    cmp r11, SOB_NIL_ADDRESS
-    je .end_count_list_args
-    inc r10                        ;counting
-    CDR r14, r11                   ;get cdr element in r14
-    mov r11, r14                   ;copy r14 to r11 for next loop compare
-    jmp .count_list_args
-
-.end_count_list_args:              ;now :   r9- PTR (argn), r8- num of args beside argn, r10- num of elements in argn
-    mov r11, r8                    ;r11 = num of args beside argn
-    add r11, r10                   ;r11 = num of args beside argn + num of elements in argn #############################################
-
-
-
-.loop_of_pushing_argn_arguments:   ; n = r10 = num of elements in argn
-    mov rsi, r9                    ; rsi = PTR(argn)
-    cmp r10, 0
-    je .end_of_loop_of_pushing_argn_arguments
-    mov rdi, r10                   ; rdi = n = r10 = num of elements in argn
-    sub rdi, 1                     ; rdi = n-1
-.loop_car_cdr:
-    cmp rdi,0
-    je .end_of_loop_car_cdr
-    CDR r14, rsi
-    mov rsi, r14                   ; prepare rsi for next cdr/car action
-    sub rdi, 1                     ; (n-1) --
-    jmp .loop_car_cdr
-
-.end_of_loop_car_cdr:
-    CAR r14, rsi
-    mov rsi, r14
-    push rsi                       ; push arg from argn 
-    sub r10, 1                     ; n--
-    jmp .loop_of_pushing_argn_arguments
-
-.end_of_loop_of_pushing_argn_arguments:
-    mov rsi, r8                    ; For being sure: rsi = r8 = num of args beside argn
-                                   ; n = rsi
-    mov r13, rsi
-    add rsi, 4                     ; rsi = 1 (r.a) + 1 (env) + 1 (num_of_args) + 1(func_name) + num of args beside argn
-    shl rsi, 8                     ; rsi = 8 * rsi = distance from rbp
-    
-.loop_push_args_1_n_minus_1:
-    cmp r13, 0
-    je .end_of_loop_push_args_1_n_minus_1
-  
-    mov r12, qword[rbp + rsi]      ; r12 = [rbp + distance]
-    push r12                       ; push arg
-    sub r13, 1                     ; n--
-    sub rsi,8                      ; go to next arg to push
-    jmp .loop_push_args_1_n_minus_1
-
-.end_of_loop_push_args_1_n_minus_1:
-
-    
-    push r11                       ;push num_of_args
-
-    mov r12, qword[rbp + 4*8]      ;r12 = func name
-    CLOSURE_ENV rbx, r12
-    push rbx                       ;push env (func name inside)
-    push qword [rbp + 8]           ;push return address
-    push qword[rbp]                ;push old rbp
-
-.shift_frame:
-    add r11, 5                     ; 5 = 1 (rbp) + 1 (r.a) + 1 (env) + 1 (nil = magic) + 1 (num_of_args)
-                                   ; r11 = size of the frame = size of shifting loop
-
-    mov r14, qword [rbp + 3*8]     ;num of args in old frame = rbp , r.a, env , num_of_args
-    add r14, 5                     ;5 = 1 (rbp) + 1 (r.a) + 1 (env) + 1 (magic) + 1 (num_of_args_old)
-    mov rsi,1                      ;rsi = index
-
-.shifting_loop:
-    cmp r11, 0
-    je .end_of_shifting_loop
-    sub r14, 1                     ; r14 = n--
-    mov r8, rsi                    ; r8 = index
-    shl r8, 3                      ; r8 = index * 8
-    mov r9, qword[rbp - r8]        ; r9 = rbp - index * 8
-    mov qword[rbp + WORD_SIZE * r14], r9  ;rbp + 8 * (5 + N-args - index) = rbp - index * 8 = r9
-    inc rsi                        ; index ++
-    sub r11,1
-    jmp .shifting_loop
-
-.end_of_shifting_loop:
-    mov r9, qword [rbp + 3*8]      ; repair the stack pointer (new_frame_size + old_frame_size) - old_frame_size
-    add r9, 5
-    shl r9, 3                      ; Now - r9 = old_frame_size
-    add rsp, r9
-
-    CLOSURE_CODE rbx ,r12          ; r12 holds the pointer to the sob closure
-    pop rbp
-    jmp rbx 
