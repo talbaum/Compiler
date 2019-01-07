@@ -368,6 +368,7 @@ let bound =1073741823 in
           inc rdx
           jmp no_paramsloop"^ no_params_suffix ^"
         " in
+
       let find_params = "
       find_params"^ find_params_suffix ^":
           cmp r8,rdx
@@ -419,6 +420,7 @@ let bound =1073741823 in
         inc r9
         jmp loop_env"^ loop_env_suffix ^" 
         " in
+
        let create_closure = " 
 create_closure"^ create_closure_suffix ^":
    mov r9, rax                    
@@ -436,6 +438,25 @@ create_closure"^ create_closure_suffix ^":
   Lcont"^lcont_suffix ^":
 " in
 args_setup ^ no_params ^ find_params ^ after_find_params ^ loop_env ^create_closure ^ lcode
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   | LambdaOpt'(params , vs ,body)  ->
       let () =Random.self_init() in 
       let old_env_size = env in
@@ -463,6 +484,7 @@ args_setup ^ no_params ^ find_params ^ after_find_params ^ loop_env ^create_clos
       mov r10, r9
       shl r10, 3
       MALLOC r10,r10 ; 
+
       mov r8, r9
       dec r8
       jmp find_params"^ find_params_suffix ^" 
@@ -482,6 +504,7 @@ args_setup ^ no_params ^ find_params ^ after_find_params ^ loop_env ^create_clos
           inc rdx
           jmp no_paramsloop"^ no_params_suffix ^"
         " in
+
       let find_params = "
       find_params"^ find_params_suffix ^":
           cmp r8,rdx
@@ -534,6 +557,7 @@ args_setup ^ no_params ^ find_params ^ after_find_params ^ loop_env ^create_clos
         inc r9
         jmp loop_env"^ loop_env_suffix ^" 
         " in
+
        let create_closure = " 
 create_closure"^ create_closure_suffix ^":
    mov r9, rax                    
@@ -544,6 +568,7 @@ create_closure"^ create_closure_suffix ^":
   LcodeOPT"^ lcode_suffix ^":
       push rbp
       mov rbp, rsp
+
       mov r13, SOB_NIL_ADDRESS
       mov r15, qword [rbp + 3*WORD_SIZE] 
       mov rsi,r15 
@@ -551,9 +576,11 @@ create_closure"^ create_closure_suffix ^":
       sub r15, "^string_of_int params_len ^"   
       cmp r15,0
       je done_fix"^ lcode_suffix ^"
+
       mov r12, 32
       add r12, rsi
       add r12, rbp
+
   build_opt_list"^ suffix ^":
       cmp r15, 0 
       je finish"^suffix^"
@@ -569,14 +596,23 @@ create_closure"^ create_closure_suffix ^":
      
      ; change_args_count"^ lcode_suffix ^":        ;; change the arg count to be paramslist +1
      ;      mov qword[rbp+3*WORD_SIZE] ,"^(string_of_int params_len_plus_one)^"
+
+
   done_fix"^ lcode_suffix ^":
    " ^ (generate_handle consts fvars body (env+1) counter) ^"
+
     mov   rbp, rsp    
     pop   rbp
     ret
   LcontOPT"^lcont_suffix ^":
+
 " in
   args_setup ^ no_params ^ find_params ^ after_find_params ^ loop_env ^create_closure ^ lcodeOPT 
+
+
+
+
+
   | Applic' (proc , arg_list) -> 
           (*let () = incr counter in*)
           let chino = "
@@ -608,6 +644,7 @@ create_closure"^ create_closure_suffix ^":
           
           " in
           chino^with_proc ^ assembly_check 
+
    | ApplicTP'(proc , arg_list) ->
           let chino = "\n;TP\n push SOB_NIL_ADDRESS  \n" in
           let rev = List.rev arg_list in
@@ -715,6 +752,7 @@ create_closure"^ create_closure_suffix ^":
   jne LexitOr"^suffix^"\n") consts fvars env previous_arg_number lambda_depth params_so_far) ^ "
   LexitOr"^suffix^":" )
 
+
  | LambdaSimple' (params , body) -> 
       let () =Random.self_init() in 
       let old_env_size = env in
@@ -733,7 +771,6 @@ create_closure"^ create_closure_suffix ^":
       mov r14, "^string_of_int old_env_size ^"
       cmp r14, 0      ;; check maybe 1 or change down to 0
       je no_params"^suffix^"
-
       take_params"^suffix^":                         ;take_params into extenv[0]
         mov r12, qword[rbp + 8 * 2]
         %assign i 0
@@ -742,13 +779,11 @@ create_closure"^ create_closure_suffix ^":
         mov [r15 + (i+1)*8], r13
         %assign i i+1
         %endrep
-
     allocate_first_ext_env"^suffix^":
         mov r14,"^ string_of_int previous_arg_number ^ "
         shl r14 , 3
         MALLOC r14, r14      ; allocate size for the extenv[0] for params
         mov qword[r15], r14
-
         
   take_old_array_cells"^suffix^":
         %assign i 0                                    ; extenv[j] = env[i]
@@ -758,21 +793,18 @@ create_closure"^ create_closure_suffix ^":
         %assign i i+1
         %endrep
        jmp create_closure"^suffix^"
-
       no_params"^suffix^":
         mov r15 ,  SOB_NIL_ADDRESS
         
       create_closure"^suffix^":
         MAKE_CLOSURE(rax, r15, Lcode"^suffix^")
         jmp Lcont"^suffix^"
-
       Lcode"^suffix^":
         push rbp
         mov rbp, rsp
         "^ generate_handle consts fvars body (env+1) params_len ext_env_size params_so_far  ^"
         leave
         ret
-
       Lcont"^suffix^":
             
       " in code
@@ -794,7 +826,6 @@ create_closure"^ create_closure_suffix ^":
       mov r14, "^string_of_int old_env_size ^"
       cmp r14, 0      ;; check maybe 1 or change down to 0
       je no_params"^suffix^"
-
       take_params"^suffix^":                         ;take_params into extenv[0]
         mov r12, qword[rbp + 8 * 2]
         %assign i 0
@@ -803,13 +834,11 @@ create_closure"^ create_closure_suffix ^":
         mov [r15 + (i+1)*8], r13
         %assign i i+1
         %endrep
-
     allocate_first_ext_env"^suffix^":
         mov r14,"^ string_of_int previous_arg_number ^ "
         shl r14 , 3
         MALLOC r14, r14      ; allocate size for the extenv[0] for params
         mov qword[r15], r14
-
         
   take_old_array_cells"^suffix^":
         %assign i 0                                    ; extenv[j] = env[i]
@@ -819,7 +848,6 @@ create_closure"^ create_closure_suffix ^":
         %assign i i+1
         %endrep
        jmp create_closure"^suffix^"
-
       no_params"^suffix^":
         mov r15 ,  SOB_NIL_ADDRESS
         
@@ -832,7 +860,6 @@ create_closure"^ create_closure_suffix ^":
   LcodeOPT"^ suffix ^":
       push rbp
       mov rbp, rsp
-
       mov r13, SOB_NIL_ADDRESS
       mov r15, qword [rbp + 3*WORD_SIZE] 
       mov rsi,r15 
@@ -840,11 +867,9 @@ create_closure"^ create_closure_suffix ^":
       sub r15, "^string_of_int params_len ^"   
       cmp r15,0
       je done_fix"^ suffix ^"
-
       mov r12, 32
       add r12, rsi
       add r12, rbp
-
   build_opt_list"^ suffix ^":
       cmp r15, 0 
       je finish"^suffix^"
@@ -860,19 +885,14 @@ create_closure"^ create_closure_suffix ^":
      
      ; change_args_count"^ suffix ^":        ;; change the arg count to be paramslist +1
      ;      mov qword[rbp+3*WORD_SIZE] ,"^(string_of_int params_len_plus_one)^"
-
-
   done_fix"^ suffix ^":
    " ^ (generate_handle consts fvars body (env+1) params_len_plus_one ext_env_size params_so_far) ^"
-
     mov   rbp, rsp    
     pop   rbp
     ret
   LcontOPT"^suffix ^":
-
 " in
-  code  ^ lcodeOPT 
-
+code ^ lcodeOPT 
   | Applic' (proc , arg_list) -> 
           (*let () = incr counter in*)
           let chino = "
