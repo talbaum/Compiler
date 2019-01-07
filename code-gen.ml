@@ -513,72 +513,65 @@ let bound =1073741823 in
 " in
  let code = init^ copyParams^malocEnv0^copyOldEnv^makeClosure^lcodeOPT in
             code
-  | Applic' (proc , arg_list) -> 
-          (*let () = incr counter in*)
-          let chino = "
+   | Applic' (proc , arg_list) -> 
+          let magic = "
           ; mov r10,SOB_NIL_ADDRESS ; MAGIC PARAM - NULL?
-          push qword SOB_NIL_ADDRESS  
+          push SOB_NIL_ADDRESS  
           " in
           let rev = List.rev arg_list in
           let args_text = gen_map rev "\n push rax \n" consts fvars env  previous_arg_number lambda_depth params_so_far in
-          let post_args = args_text ^ "\n push "^ string_of_int (List.length arg_list)^" \n" in
-          let proc_text = generate_handle consts fvars proc env previous_arg_number lambda_depth params_so_far in
-          let with_proc = post_args ^ proc_text in
-          let assembly_check = 
-          " 
-          cmp byte[rax],  T_CLOSURE
-          jne invalid     
+          let args_and_length = args_text ^ "\n push "^ string_of_int (List.length arg_list)^" \n" in
+
+          let checkType = 
+          "\n cmp byte[rax],  T_CLOSURE
+          jne invalid     " in
+          let envAndCode = "
           CLOSURE_ENV rbx, rax
           push rbx
           CLOSURE_CODE rax, rax 
-          call rax
-      
-          add rsp, 8*1         ; pop env
-          pop rbx ; pop arg count
-          shl rbx, 3 ; rbx = rbx * 8
-          add rsp, rbx; pop args
-          add rsp , 8
-          ;pop r10
-          
+          call rax \n" in
+          let setsRsp = "
+          add rsp, 8*1        ; pop env
+          pop rbx             ; pop arg count
+          shl rbx, 3          ; rbx = rbx * 8
+          add rsp, rbx        ; pop args
+          add rsp , 8     
           " in
-          chino^with_proc ^ assembly_check 
-
-  | ApplicTP'(proc , arg_list) ->
-          let chino = "\n;TP\n push qword SOB_NIL_ADDRESS  \n" in
+          let proc_text = generate_handle consts fvars proc env previous_arg_number lambda_depth params_so_far in
+          let with_proc = args_and_length ^ proc_text in
+          let assembly_code= checkType ^ envAndCode ^ setsRsp in
+          magic^with_proc ^ assembly_code 
+  
+          | ApplicTP'(proc , arg_list) ->
+          let magic = "\n;TP \n push qword SOB_NIL_ADDRESS  \n" in
           let rev = List.rev arg_list in
           let args_text = gen_map rev "\n push rax \n" consts fvars env   previous_arg_number lambda_depth params_so_far in
           let post_args = args_text ^ "\n push "^ string_of_int (List.length arg_list)^" \n" in
-          let proc_text = generate_handle consts fvars proc env  previous_arg_number lambda_depth params_so_far in
-          let with_proc = post_args ^ proc_text in
-          let assembly_check = 
-          " 
-          cmp byte[rax],  T_CLOSURE
-          jne invalid     
+          let shiftFrameArg = string_of_int ((List.length arg_list)+5) in
+         let checkType = 
+          "\n cmp byte[rax],  T_CLOSURE
+          jne invalid     " in
+          let push_env = " 
           CLOSURE_ENV rbx, rax
-          push rbx
-          push qword [rbp + 8*1]                      ; old ret address
+          push rbx \n" in
+          let handleRbp = "
+          push qword [rbp + 8]                     
           mov r14, qword [rbp]                       ;;;;;;;;; TP ;;;;;;;;;;;;;;
-          mov r9, qword[rbp + 3*WORD_SIZE]
-          SHIFT_FRAME "^ string_of_int ((List.length arg_list)+5) ^"   ;;;checkif supposed to be 4 or 5
-          add r9,5
-          shl r9, 3
-          
+          mov r9, qword[rbp + 3*WORD_SIZE] \n" in
+          let shift_frame = "
+          \nSHIFT_FRAME "^ shiftFrameArg ^"   ;;;checkif supposed to be 4 or 5" in
+          let setRbp =
+          "\nadd r9,5
+          shl r9, 3     
           add rsp, r9
-          mov rbp, r14                                ;;;;;;;;;;;;;;;;;;;;;;;
-          CLOSURE_CODE r12, rax 
-          
+          mov rbp, r14 \n" in                            
+          let applicCode = "CLOSURE_CODE r12, rax 
           jmp r12
-          "
-      
-(*           add rsp, 8*1         ; pop env
-          pop rbx ; pop arg count
-          shl rbx, 3 ; rbx = rbx * 8
-          add rsp, rbx; pop args
-          add rsp , 8
-          ;pop r10 *)
-          
-           in
-          chino^with_proc ^ assembly_check
+          " in
+          let proc_text = generate_handle consts fvars proc env  previous_arg_number lambda_depth params_so_far in
+          let with_proc = post_args ^ proc_text in   
+          let assembly_code= checkType ^push_env^ handleRbp ^ shift_frame^ setRbp^applicCode in     
+          magic^with_proc ^ assembly_code
 |_->""
 
   and gen_map list code_to_write consts fvars env   previous_arg_number lambda_depth params_so_far = 
