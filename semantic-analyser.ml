@@ -324,8 +324,8 @@ let box_set e = annotate_box e [] ;;
 
 let run_semantics expr = 
   box_set(
-    (* (annotate_tail_calls *)
-       (annotate_lexical_addresses expr));;
+    (annotate_tail_calls
+       (annotate_lexical_addresses expr)));;
 
  
 end;; (* struct Semantics *)
