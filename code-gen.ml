@@ -97,7 +97,7 @@ let find_element e constant_table =
   let ans = List.filter (fun(x) -> x!= -1) offset_list in 
   match ans with
   | [num] -> string_of_int num
-  | _ -> "not found"
+  | _ -> "CHINO"
  ;;
 
 
@@ -146,6 +146,15 @@ let get_offset_fvars fvars_table = match fvars_table with
        let (_,last_offset)=last in
        last_offset;;
 
+let ascii_string string =
+let list = string_to_list string in
+let chin = List.map Char.code list in
+let asc_list = List.map string_of_int chin in
+let ans = String.concat "," asc_list in
+ans;;
+
+
+
 let rec get_represent elem constant_table= match elem with
   | Sexpr(Nil) -> "MAKE_NIL"
   | Void -> "MAKE_VOID"
@@ -154,7 +163,7 @@ let rec get_represent elem constant_table= match elem with
   | Sexpr(Number(Int(e))) -> "MAKE_LITERAL_INT(" ^ (string_of_int e) ^ ")"
   | Sexpr(Number(Float(e))) -> "MAKE_LITERAL_FLOAT(" ^(string_of_float e) ^ ")"
   | Sexpr(Symbol (e) as tmp) ->  "MAKE_LITERAL_SYMBOL(const_tbl+" ^ (find_element tmp constant_table) ^  ")"                             (*implement this*)
-  | Sexpr(String (e)) -> "MAKE_LITERAL_STRING \"" ^ e ^ "\""
+  | Sexpr(String (e)) -> "MAKE_LITERAL_STRING " ^ (ascii_string e) ^ ""
   | Sexpr(Pair (car,cdr)) -> "MAKE_LITERAL_PAIR(const_tbl+" ^ (find_element car constant_table) ^ ",const_tbl+" ^ (find_element cdr constant_table) ^ ")"
   | Sexpr(Vector (sexprs_list))->
   let tmp = "MAKE_LITERAL_VECTOR " ^ 
