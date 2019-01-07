@@ -76,7 +76,7 @@ section .text
 global main
 main:
     ;; set up the heap
-    mov rdi, MB(100)
+    mov rdi, GB(4)
     call malloc
     mov [malloc_pointer], rax
     ;; Set up the dummy activation frame
@@ -270,7 +270,7 @@ exception X_missing_input_file;;
 
 try
   let infile = Sys.argv.(1) in
-  let code =  (*(file_to_string "stdlib.scm") ^ *)(file_to_string infile) in
+  let code =  (file_to_string "stdlib.scm") ^ (file_to_string infile) in
   let asts = string_to_asts code in
   let consts_tbl = Code_Gen.make_consts_tbl asts in
   let fvars_tbl = Code_Gen.make_fvars_tbl asts in
