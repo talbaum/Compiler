@@ -730,9 +730,9 @@ create_closure"^ create_closure_suffix ^":
   mov qword [rbp + (4 + "^string_of_int minor^")*WORD_SIZE], rax
   mov rax, SOB_VOID_ADDRESS"
   | Set'(Var'(VarBound (str ,major, minor)),value)->(generate_handle consts fvars value env previous_arg_number lambda_depth params_so_far)  ^
-  "mov rbx, qword [rbp + 8 ∗ 2]
-  mov rbx, qword [rbx + 8 ∗"^string_of_int  major^"]
-  mov qword [rbx + 8 ∗"^string_of_int  minor^"], rax
+  "mov rbx, qword [rbp + 16]
+  mov rbx, qword [rbx + "^string_of_int  major^"*WORD_SIZE]
+  mov qword [rbx +"^string_of_int  minor^"*WORD_SIZE], rax
   mov rax, SOB_VOID_ADDRESS"
   | Set'(Var'(VarFree(str)),value)->
   let value_text = (generate_handle consts fvars value env previous_arg_number lambda_depth params_so_far) in
@@ -924,7 +924,7 @@ code ^ lcodeOPT
           chino^with_proc ^ assembly_check 
 
   | ApplicTP'(proc , arg_list) ->
-          let chino = "\n;TP\n push SOB_NIL_ADDRESS  \n" in
+          let chino = "\n;TP\n push qword SOB_NIL_ADDRESS  \n" in
           let rev = List.rev arg_list in
           let args_text = gen_map rev "\n push rax \n" consts fvars env   previous_arg_number lambda_depth params_so_far in
           let post_args = args_text ^ "\n push "^ string_of_int (List.length arg_list)^" \n" in
@@ -937,16 +937,17 @@ code ^ lcodeOPT
           CLOSURE_ENV rbx, rax
           push rbx
           push qword [rbp + 8*1]                      ; old ret address
-          mov r8, rbp                       ;;;;;;;;; TP ;;;;;;;;;;;;;;
+          mov r14, qword [rbp]                       ;;;;;;;;; TP ;;;;;;;;;;;;;;
           mov r9, qword[rbp + 3*WORD_SIZE]
+          SHIFT_FRAME "^ string_of_int ((List.length arg_list)+5) ^"   ;;;checkif supposed to be 4 or 5
           add r9,5
           shl r9, 3
-          SHIFT_FRAME "^ string_of_int ((List.length arg_list)+5) ^"   ;;;checkif supposed to be 4 or 5
           
           add rsp, r9
-          mov rbp, r8                                ;;;;;;;;;;;;;;;;;;;;;;;
-          CLOSURE_CODE rax, rax 
-          jmp rax
+          mov rbp, r14                                ;;;;;;;;;;;;;;;;;;;;;;;
+          CLOSURE_CODE r12, rax 
+          
+          jmp r12
           "
       
 (*           add rsp, 8*1         ; pop env
