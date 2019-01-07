@@ -164,12 +164,14 @@
 %define MAKE_NIL db T_NIL
 %define MAKE_VOID db T_VOID
 %define MAKE_BOOL(val) MAKE_LITERAL T_BOOL, db val
-%macro MAKE_LITERAL_STRING 1
+%macro MAKE_LITERAL_STRING 0-*
 	db T_STRING
-	dq (%%end_str - %%str)
-	%%str:
+	dq %0
+	%rep %0
 	db %1
-	%%end_str:
+	%rotate 1
+	%endrep
+	
 %endmacro
 
 
