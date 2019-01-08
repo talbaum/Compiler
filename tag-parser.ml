@@ -49,7 +49,6 @@ let rec expr_eq e1 e2 =
   
                        
 exception X_syntax_error;;
-exception X_tmp;;
 
 module type TAG_PARSER = sig
   val tag_parse_expression : sexpr -> expr
@@ -124,7 +123,6 @@ let rec tag_parse sexpr =  match sexpr with
 | Bool (a) ->  Const(Sexpr(Bool (a)))
 | Char(a)-> Const(Sexpr(Char(a)))
 | String(a)-> Const (Sexpr(String(a)))
-(* | Vector(exprs) -> Const(Sexpr(Vector((exprs)))) *)
 | Pair(Symbol("quote"), Pair(a, Nil)) -> Const(Sexpr(a))
 | Pair(Symbol("if"), Pair(test, Pair(dit, Pair(dif, Nil)))) -> If(tag_parse test, tag_parse dit, tag_parse dif)
 | Pair(Symbol("if"), Pair(test, Pair(dit, Nil)))-> If(tag_parse test, tag_parse dit, Const (Void))
@@ -144,7 +142,7 @@ let rec tag_parse sexpr =  match sexpr with
 | Pair(Symbol "define", Pair(Pair(varname, arglist), body))-> define_mit_macro_extension varname arglist body
 | Symbol(a)-> symbol_tag_parser a 
 | Pair (functionName, args)->applic_tag_parser functionName args
-| _-> raise X_syntax_error 
+| _ -> raise  X_syntax_error
 
 
 (* ------------------------------- let rec-------------------------------------*)
