@@ -76,7 +76,7 @@ section .text
 global main
 main:
     ;; set up the heap
-    mov rdi, GB(4)
+    mov rdi, MB(100)
     call malloc
     mov [malloc_pointer], rax
     ;; Set up the dummy activation frame
