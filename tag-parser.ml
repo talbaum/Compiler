@@ -324,20 +324,21 @@ and and_macro_extension sexpr= match sexpr with
 (*---------------------------------- quasiquote ---------------------------------------------------------*)
 and quasiquote_tag_parser exprs= 
 (match exprs with
-|Nil -> tag_parse (Pair(Symbol("quote"), Pair(Nil, Nil)))
-|Symbol(exprs) ->tag_parse (Pair(Symbol("quote"), Pair(Symbol(exprs), Nil)))
-|String(exprs) ->tag_parse (Pair(Symbol("quote"), Pair(String(exprs), Nil)))
+|Nil ->  tag_parse(Pair(Symbol("quote"), Pair(Nil, Nil)))
+(*|String(exprs) ->tag_parse (Pair(Symbol("quote"), Pair(String(exprs), Nil)))
 |Number(exprs) ->tag_parse (Pair(Symbol("quote"), Pair(Number(exprs), Nil)))
 |Bool(exprs) ->tag_parse (Pair(Symbol("quote"), Pair(Bool(exprs), Nil)))
 |Char(exprs) ->tag_parse (Pair(Symbol("quote"), Pair(Char(exprs), Nil)))
 |Pair(Symbol("quote"),rest)-> let tmp = Pair(Symbol("quote"),rest) in
-tag_parse (Pair(Symbol("quote"), Pair(tmp, Nil)))
+              tag_parse (Pair(Symbol("quote"), Pair(tmp, Nil)))*)
 |Pair(Symbol("unquote"), Pair(rest,Nil))-> tag_parse rest
 |Pair(Symbol("unquote-splicing"), rest)->raise X_syntax_error
 |Pair(Pair(Symbol("unquote-splicing"),Pair(spliced,Nil)),after)-> tag_parse (unquote_splicing_builder spliced Nil after 1)
 |Pair(before,Pair(Symbol("unquote-splicing"),Pair(spliced,Nil)))-> tag_parse (unquote_splicing_builder spliced before Nil 2)
 |Pair(before,after)-> tag_parse (unquote_splicing_builder Nil before after 3)
 |Vector(args)-> tag_parse(Pair(Symbol( "vector"),(list_to_nested_pairs(quasi_map_tag_parse args))))
+|Symbol(exprs) ->tag_parse (Pair(Symbol("quote"), Pair(Symbol(exprs), Nil)))
+| exprs -> tag_parse exprs
 ) 
 
 
