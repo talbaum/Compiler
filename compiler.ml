@@ -90,7 +90,7 @@ main:
     push rsp
     mov rbp, rsp
     call code_fragment
-    add rsp, 4*8
+    add rsp, 4*8        ;5 after it pop rbp
     ret
 code_fragment:
     ;; Set up the primitive stdlib fvars:
