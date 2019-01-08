@@ -1,7 +1,7 @@
 is_boolean:
     push rbp
     mov rbp, rsp
-
+ 
     mov rsi, PVAR(0)
     mov sil, byte [rsi]
 
