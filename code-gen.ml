@@ -59,22 +59,17 @@ module Code_Gen : CODE_GEN = struct
 
 ;;
 
-(* let tmp element copy_list = 
-let rev_list = List.rev copy_list in
-let without_first_elem = List.remove_assoc element rev_list in
-let list_without_first_elem_good_order = List.rev without_first_elem in 
-if List.length list_without_first_elem_good_order = List.length copy_list then element else Nil
-let rec remove_duplicate list = let copy_list = list in
-match list with
-|[] -> Nil
-|[hd,tl]-> tmp hd copy_list @ [remove_duplicate (List.tl copy_list)]
-;; *)
 
-let is_in_list elem list = if List.mem elem list then list else elem :: list
-let remove_duplicate list = List.fold_right is_in_list list []
-let remove_dups_wrapper list = let rev = List.rev list in
-let rem = remove_duplicate rev in
-List.rev rem;;
+let rec remove_duplicates list1 list2 =
+  match list1 with 
+  | []-> list2
+  | _ -> (
+  let const = (List.hd list1) in
+  let list = list2@[const] in
+  if List.mem const list2 
+  then remove_duplicates (List.tl list1) list2
+  else remove_duplicates (List.tl list1) list)  ;;
+
 
  let add_one  counter = 
  let getCounter = !counter in
@@ -224,10 +219,10 @@ init_basics @ list;;
 
   let make_consts_tbl asts = 
   let constants_list = collect_all_sexprs asts [] in
-  let constants_set  = remove_duplicate constants_list in
+  let constants_set  = remove_duplicates constants_list [] in
   let expanded_list = build_topolig_list constants_set in
   let add_basics_to_const_list = add_basics expanded_list in
-  let no_dups_list = remove_dups_wrapper add_basics_to_const_list in
+  let no_dups_list = remove_duplicates add_basics_to_const_list [] in
   create_const_table no_dups_list [];; 
   
 
@@ -236,7 +231,7 @@ init_basics @ list;;
 
   let make_fvars_tbl asts = 
   let fvar_list = collect_all_fvars asts [] in
-  let fvar_set = remove_duplicate fvar_list in 
+  let fvar_set = remove_duplicates fvar_list [] in 
   init_fvars @ (create_fvar_table fvar_set 34)
   ;;
     
@@ -285,7 +280,8 @@ let bound =1073741823 in
   | Box' (v) ->  "
    MALLOC rdi, 8 \n"^
    (generate_handle consts fvars (Var'(v)) env  previous_arg_number lambda_depth params_so_far )
-    ^"mov qword[rdi], rax
+    ^"
+    mov qword[rdi], rax
     mov rax,rdi
    " 
    (*  /////////////// check if need to implement generate to var parmam inside the box
