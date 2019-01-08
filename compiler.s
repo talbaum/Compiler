@@ -34,7 +34,9 @@
 
 %define INT_VAL SKIP_TYPE_TAG
 
-%define CHAR_VAL SKIP_TYPE_TAG
+%macro CHAR_VAL 2
+	movzx %1 , byte[%2+TYPE_SIZE]
+%endmacro
 
 %define FLOAT_VAL SKIP_TYPE_TAG
 
@@ -317,7 +319,7 @@ write_sob_char:
 	mov rbp, rsp
 
 	CHAR_VAL rsi, rsi
-	and rsi, 255
+	;and rsi, 255
 
 	cmp rsi, CHAR_NUL
 	je .Lnul
