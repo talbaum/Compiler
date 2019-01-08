@@ -87,19 +87,6 @@ let isEqual_constant e1 e2=
   | (Sexpr s1), (Sexpr s2) -> sexpr_eq s1 s2
   | _-> false;;
 
-let find_element e constant_table = 
-  let find_me = (match e with 
-  | Symbol(x) -> String(x)
-  | rest -> rest) in
-  let offset_list = List.map (fun(tuple)-> 
-          let (sexpr,offset,_) = tuple in
-          if isEqual_constant ((Sexpr(find_me))) sexpr = true then offset else -1) constant_table in
-  let ans = List.filter (fun(x) -> x!= -1) offset_list in 
-  match ans with
-  | [num] -> string_of_int num
-  | _ -> "0"
- ;;
-
 
 let rec build_topolig_list constant_set =  match constant_set with
 | [] -> []
@@ -154,6 +141,16 @@ let ans = String.concat "," asc_list in
 ans;;
 
 
+let find_element e constant_table = 
+  let find_me =e in
+  let offset_list = List.map (fun(tuple)-> 
+          let (sexpr,offset,_) = tuple in
+          if isEqual_constant ((Sexpr(find_me))) sexpr = true then offset else -1) constant_table in
+  let ans = List.filter (fun(x) -> x!= -1) offset_list in 
+  match ans with
+  | [num] -> string_of_int num
+  | _ -> "0"
+ ;;
 
 let rec get_represent elem constant_table= match elem with
   | Sexpr(Nil) -> "MAKE_NIL"
@@ -162,7 +159,7 @@ let rec get_represent elem constant_table= match elem with
   | Sexpr(Char(e)) -> Printf.sprintf "MAKE_LITERAL_CHAR(%d)" (Char.code e)
   | Sexpr(Number(Int(e))) -> "MAKE_LITERAL_INT(" ^ (string_of_int e) ^ ")"
   | Sexpr(Number(Float(e))) -> "MAKE_LITERAL_FLOAT(" ^(string_of_float e) ^ ")"
-  | Sexpr(Symbol (e) as tmp) ->  "MAKE_LITERAL_SYMBOL(const_tbl+" ^ (find_element tmp constant_table) ^  ")"                             (*implement this*)
+  | Sexpr(Symbol (e) ) ->  "MAKE_LITERAL_SYMBOL(const_tbl+" ^ (find_element (String(e)) constant_table) ^  ")"                             (*implement this*)
   | Sexpr(String (e)) -> "MAKE_LITERAL_STRING " ^ (ascii_string e) ^ ""
   | Sexpr(Pair (car,cdr)) -> "MAKE_LITERAL_PAIR(const_tbl+" ^ (find_element car constant_table) ^ ",const_tbl+" ^ (find_element cdr constant_table) ^ ")"
   | Sexpr(Vector (sexprs_list))->
