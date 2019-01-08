@@ -278,7 +278,8 @@ let bound =1073741823 in
 ; mov rax, qword [rbp +8 *(4+"^string_of_int minor^")] 
  
  "
-  | Var'(VarBound (str ,major, minor)) ->"mov rax, qword [rbp + 2 * WORD_SIZE]
+  | Var'(VarBound (str ,major, minor)) ->"
+  mov rax, qword [rbp + 2 * WORD_SIZE]
   mov rax, qword [rax + "^string_of_int major^"*WORD_SIZE]
   mov rax, qword [rax + "^string_of_int minor^"*WORD_SIZE]"
   | Box' (v) ->  "
