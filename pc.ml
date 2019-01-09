@@ -180,7 +180,7 @@ let trace_pc desc nt s =
 
 (* testing the parsers *)
 
-let test_string nt str =
+let test_string nt str = 
   let (e, s) = (nt (string_to_list str)) in
   (e, (Printf.sprintf "->[%s]" (list_to_string s)));;
 
