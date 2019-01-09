@@ -312,7 +312,7 @@ let sexp_and_spaces_after = PC.caten spaces_before_and_sexp _comments_and_spaces
 (PC.pack sexp_and_spaces_after (fun((first_spaces, sexp),last_spaces)->sexp)) s
 
 and _compound_  s=
-let packed = PC.disj_list [_List_;_Vector_;_DottedList_;_Quoted_;_QuasiQuoted_;_Unquoted_;_UnquoteAndSpliced_;] in
+let packed =  (PC.disj_list [_List_;_Vector_;_DottedList_;_Quoted_;_QuasiQuoted_;_Unquoted_;_UnquoteAndSpliced_;] )in
 packed s
 
 and _nested_compound_  s=
@@ -323,7 +323,7 @@ packed s
 
 and _Sexpr_Comment_ s  =
 let _Scomment_format_= PC.caten  sexp_comment_prefix _Sexp_ in
-let packed =PC.pack _Scomment_format_ (fun(x,y)->[]) in
+let packed =PC.pack _Scomment_format_ (fun(x,y)->Nil) in
 packed s
 
 
@@ -334,12 +334,12 @@ let _no_newline_ =(PC.range (char_of_int 32) (char_of_int 127)) in
 let _comment_char_data_ = PC.diff PC.nt_any _end_of_comment_ in
 let _comment_full_data_ = PC.star _comment_char_data_ in
 let _comment_start_and_data_ = PC.caten _psikuda_ _comment_full_data_ in
-let _line_Comment1_ =  PC.pack (PC.caten _comment_start_and_data_ _end_of_comment_) (fun ((x,y),z)->[])  in
+let _line_Comment1_ =  PC.pack (PC.caten _comment_start_and_data_ _end_of_comment_) (fun ((x,y),z)->Nil)  in
 _line_Comment1_ s
 
 
 and _comments_and_spaces_ s=
-let _Space_ =  PC.pack (PC.nt_whitespace) (fun(x)->[]) in
+let _Space_ =  PC.pack (PC.nt_whitespace) (fun(x)->Nil) in
 let _Comment_ = PC.disj   _line_comment_ _Sexpr_Comment_ in
 let _Skip_ =  (PC.star (PC.disj _Comment_ _Space_ )) in
 _Skip_ s
@@ -353,14 +353,14 @@ in packed s
 (*---------------------------- LIST --------------------------------------*)
 
 and _List_ s =
-let a = PC.caten (PC.caten poteah (PC.star _Sexp_)) soger in
-let b =  PC.caten (PC.caten squarePoteah (PC.star _Sexp_)) squareSoger in
+let a = PC.caten (PC.caten poteah (PC.caten _comments_and_spaces_((PC.star _Sexp_)))) soger in
+let b =  PC.caten (PC.caten squarePoteah (PC.caten _comments_and_spaces_((PC.star _Sexp_)))) squareSoger in
 let aORb = PC.disj a b in
-let c = PC.caten (PC.caten poteah (PC.star _nested_Sexp_)) (PC.word "...") in
-let d =  PC.caten (PC.caten squarePoteah (PC.star _nested_Sexp_)) (PC.word "...") in
+let c = PC.caten (PC.caten poteah (PC.caten _comments_and_spaces_(PC.star _nested_Sexp_))) (PC.word "...") in
+let d =  PC.caten (PC.caten squarePoteah (PC.caten _comments_and_spaces_((PC.star _nested_Sexp_)))) (PC.word "...") in
 let cORd = PC.disj c d in
 let final = PC.disj aORb cORd  in
-let non_empty_list =  PC.pack final (fun((x,sexp),y)->List.fold_right (fun head tail -> Pair(head,tail))  sexp Nil) in
+let non_empty_list =  PC.pack final (fun((p,(sp,sexp)),y)->List.fold_right (fun head tail -> Pair(head,tail))  sexp Nil) in
 let packed = PC.disj  non_empty_list _nil_ in
 packed s
 
@@ -471,4 +471,5 @@ a;;
 
 
 end;; (* struct Reader *)
+
 
