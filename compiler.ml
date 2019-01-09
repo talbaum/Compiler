@@ -76,7 +76,7 @@ section .text
 global main
 main:
     ;; set up the heap
-    mov rdi, MB(100)
+    mov rdi, GB(4)
     call malloc
     mov [malloc_pointer], rax
     ;; Set up the dummy activation frame
@@ -90,7 +90,7 @@ main:
     push rsp
     mov rbp, rsp
     call code_fragment
-    add rsp, 4*8        ;5 after it pop rbp
+    add rsp, 4*8       
     ret
 code_fragment:
     ;; Set up the primitive stdlib fvars:
@@ -106,166 +106,7 @@ let init_VarTable fvar_tabel =
 List.map (fun(x)->(x))
 
 
-let epilogue = "
-car_nasm:
-    push rbp
-    mov rbp, rsp
-    mov rsi, PVAR(0)
-    cmp byte[rsi] , T_PAIR
-    jne invalid
-    mov rax, qword[rsi+1]
-    leave
-    ret
-cdr_nasm:
-    push rbp
-    mov rbp, rsp
-    mov rsi, PVAR(0)
-    cmp byte[rsi] , T_PAIR
-    jne invalid
-    mov rax, qword[rsi+1+8]
-    leave
-    ret
-set_car:
-    push rbp
-    mov rbp, rsp
-    mov rsi, PVAR(0)
-    mov rdi, PVAR(1)
-    cmp byte[rsi] , T_PAIR
-    jne invalid
-    mov qword[rsi+1], rdi
-    mov rax, SOB_VOID_ADDRESS
-    leave
-    ret
-set_cdr:
-    push rbp
-    mov rbp, rsp
-    mov rsi, PVAR(0)
-    mov rdi, PVAR(1)
-    cmp byte[rsi] , T_PAIR
-    jne invalid
-    mov qword[rsi+1+8], rdi
-    mov rax, SOB_VOID_ADDRESS
-    leave
-    ret
-cons_nasm:
-    push rbp
-    mov rbp, rsp
-    mov rsi, PVAR(0)
-    mov rdi, PVAR(1)
-    mov r8, PVAR(2)
-    mov r8, [r8]
-    MAKE_PAIR(r8, rsi, rdi)
-    mov rax, r8
-    leave
-    ret
-
-
-
-apply_nasm:
-  
-    push rbp
-    mov rbp, rsp
-    push SOB_NIL_ADDRESS
-    mov rdx, qword[rbp+3*8]      ;will be = the counter of params not in the vs
-    sub rdx,2
-    mov rsi, rdx
-    mov rdi, rbp
-    add rdi, 40
-    mov r12, rdx
-
-point_to_vs1:
-    cmp r12, 0
-    je start_counting
-    add rdi, 8
-    dec r12
-    jmp point_to_vs1              
-
-start_counting:
-    mov r12, [rdi]                ; points to the vs list = rdi           
-    mov r10, 0                     
-count_vs:
-    cmp r12, SOB_NIL_ADDRESS
-    je done_count_vs
-    add r10, 1
-    CDR rax,r12
-    mov r12,rax
-    jmp count_vs
-                     
-done_count_vs: 
-    mov r15, r10
-    mov rcx, r10
-    ;sub r15, 1
-    mov r8, r15             
-start_push:
-    mov r12, qword[rdi]      ;r12 is the list
-    cmp rcx, 0
-    je rev_list_end
-
-mov r13, r12    
-mov r8,SOB_NIL_ADDRESS
-rev_list1:
-    cmp r15, 0               ;r15 points to the list
-    je rev_list_end1
-    CAR r14, r13
-    CDR rax, r13
-    mov r13, rax
-    MAKE_PAIR (rax ,r14, r8)
-    mov r8, rax
-    dec r15
-    jmp rev_list1
-rev_list_end1:
-mov r15, r10
-push_list1:
-    cmp r15, 0                   ;r15 points to the list
-    je push_list_end1
-    CAR r14, r8
-    push r14
-    CDR rax, r8
-    mov r8, rax
-    dec r15
-    jmp push_list1
-push_list_end1:
-
-rev_list_end:
-    mov r8,rsi
-    add r8, r10 
-
-    mov r13,rdi
-    sub r13, rbp
-push_reg_params_list:
-    cmp rsi, 0                   ;r15 points to the list
-    je push_list_end
-    sub r13,8
-    push qword[rbp+r13]
-    dec rsi
-    jmp push_reg_params_list
-
-push_list_end:
-    push r8
-    sub r13,8
-    mov rdi, qword[rbp+r13]
-    CLOSURE_ENV rsi, rdi
-    push rsi                      
-    push qword [rbp + 8]           
-    push qword[rbp]                
-    mov rdx, r8
-    add rdx, 5
-    mov r15, qword [rbp + 3*8] 
-    SHIFT_FRAMESKI rdx
-tuli:
-    add r15,5
-    shl r15,3
-    add rsp,r15
-    CLOSURE_CODE rsi,rdi
-    pop rbp
-    jmp rsi
-
-invalid:
-leave
-ret
-
-
-";;
+let epilogue = "";;
 exception X_missing_input_file;;
 
 try
@@ -288,5 +129,6 @@ try
 with Invalid_argument(x) -> raise X_missing_input_file;;
 
 
-(**------------------------------------------------------------------------------------------------------- *)
+
+
 
