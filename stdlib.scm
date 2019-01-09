@@ -180,7 +180,7 @@ f) '() args))))
 				 (if (not (= (container-size-fun container-1) (container-size-fun container-2)))
 				     #f
 				     (loop container-1 container-2 container-ref-fun (- (container-size-fun container-1) 1)))))))
-      
+       
       (lambda (x y)
 	(or 
 	 (and (integer? x) (integer? y) (= x y))
