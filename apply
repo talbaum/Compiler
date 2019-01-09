@@ -3,97 +3,131 @@ apply_nasm:
   
     push rbp
     mov rbp, rsp
-    push SOB_NIL_ADDRESS
-    mov rdx, qword[rbp+3*8]      ;will be = the counter of params not in the vs
-    sub rdx,2
-    mov rsi, rdx
-    mov rdi, rbp
-    add rdi, 40
-    mov r12, rdx
+    push SOB_NIL_ADDRESS            ; push magic to the stack
+    mov r11, qword[rbp+3*8]         ; num of arguments   
+    sub r11,2                       ; without the function and the vs list
+    mov r9, r11
+    mov r10, rbp
+    add r10, 40                     ; start the loop to point to the vs list
+    mov r8, r11
 
 point_to_vs1:
-    cmp r12, 0
-    je start_counting
-    add rdi, 8
-    dec r12
-    jmp point_to_vs1              
+    cmp r8, 0                       ; start pointing on rbp+40
+    je start_counting               ; stop
+    add r10, 8                      ; add Word_size to the register - point to the next cell
+    dec r8                          ; num of args -2 --
+    jmp point_to_vs1                ; jmp again to the loop    
 
 start_counting:
-    mov r12, [rdi]                ; points to the vs list = rdi           
-    mov r10, 0                     
+    mov r8, [r10]                   ; get the actual value of the vs list             
+    mov rdx, 0                      ; count how many arguments are in the list
 count_vs:
-    cmp r12, SOB_NIL_ADDRESS
-    je done_count_vs
-    add r10, 1
-    CDR rax,r12
-    mov r12,rax
-    jmp count_vs
+    cmp r8, SOB_NIL_ADDRESS         ; if the vs list is empty - stop
+    je done_count_vs                ; jmp to the end
+    add rdx, 1                      ; increase the counter
+    CDR rax,r8                      ; count the tail of the vs list
+    mov r8,rax                      ; load r8 again
+    jmp count_vs                    ; jmp again to the loop
                      
 done_count_vs: 
-    mov r15, r10
-    mov rcx, r10
-    ;sub r15, 1
-    mov r8, r15             
+    mov rdi, rdx
+    mov r15, rdx
+    ;sub rdi, 1
+    mov r14, rdi             
 start_push:
-    mov r12, qword[rdi]      ;r12 is the list
-    cmp rcx, 0
-    je rev_list_end
+mov r8, qword[r10]                  ; get the actual value of the vs list
+    cmp r15, 0                      ; if there are 0 arguments - dont push nothing
+    je rev_list_end                 ; jmp to end
 
-mov r13, r12    
-mov r8,SOB_NIL_ADDRESS
+mov r12, r8                         ; point to the list
+mov r14,SOB_NIL_ADDRESS             ; init empty list
 rev_list1:
-    cmp r15, 0               ;r15 points to the list
-    je rev_list_end1
-    CAR r14, r13
-    CDR rax, r13
-    mov r13, rax
-    MAKE_PAIR (rax ,r14, r8)
-    mov r8, rax
-    dec r15
+    cmp rdi, 0                      ; if the list is empty
+    je rev_list_end1                ; stop and jmp to the end
+    CAR rbx, r12                    ; get the first element of the vs list and put it inside rbx
+    CDR rax, r12                    ; get the tail of the vs list and put it inside rbx
+    mov r12, rax
+    MAKE_PAIR (rax ,rbx, r14)       ; make pair of thehead of the list and the reversed one
+    mov r14, rax                    ; load the cdr of the next list
+    dec rdi                         ; decrease the counter of the loop
     jmp rev_list1
 rev_list_end1:
-mov r15, r10
-push_list1:
-    cmp r15, 0                   ;r15 points to the list
-    je push_list_end1
-    CAR r14, r8
-    push r14
-    CDR rax, r8
-    mov r8, rax
-    dec r15
-    jmp push_list1
+mov rdi, rdx                        ; rdi = number of args in the vs list 
+push_list1:                         ; start pushing the vs list
+    cmp rdi, 0                      ; if rdi is 0 stop counting
+    je push_list_end1               ; jmp to the end of pushing
+    CAR rbx, r14                    ; take the first element of the reversed vs list
+    push rbx                        ; push it
+    CDR rax, r14                    ; take the tail of the vs list
+    mov r14, rax                    ; load r14 the tail
+    dec rdi                         ; decrease the loop counter
+    jmp push_list1                  ; jmp again to push the tail
 push_list_end1:
 
 rev_list_end:
-    mov r8,rsi
-    add r8, r10 
+    mov r14,r9                      ; r14 = number of regular parameters
+    add r14, rdx                    ; r15 = number of regular parameters + number of parameters in the vs list
 
-    mov r13,rdi
-    sub r13, rbp
+    mov r12,r10                     ; point to [rbp+8*5]
+    sub r12, rbp                    ; point to 40 address
 push_reg_params_list:
-    cmp rsi, 0                   ;r15 points to the list
-    je push_list_end
-    sub r13,8
-    push qword[rbp+r13]
-    dec rsi
+    cmp r9, 0                       ; if number of regular args counter is 0 stop pushing
+    je push_list_end                ; jmp to the end
+    sub r12,8                       ; go to the next refular parameter
+    push qword[rbp+r12]             ; push it 
+    dec r9                          ; decrease the regular args counter
     jmp push_reg_params_list
 
 push_list_end:
-    push r8
-    sub r13,8
-    mov rdi, qword[rbp+r13]
-    CLOSURE_ENV rsi, rdi
-    push rsi                      
-    push qword [rbp + 8]           
-    push qword[rbp]                
-    mov rdx, r8
-    add rdx, 5
-    mov r15, qword [rbp + 3*8] 
-    SHIFT_FRAMESKI rdx
+    push r14                        ; push the number of args
+    sub r12,8                       
+    mov r10, qword[rbp+r12]         ; save the env
+    CLOSURE_ENV r9, r10             ; call closure env macro
+    push r9                         ; push the new env
+    push qword [rbp + 8]            ; push retuen address  
+    push qword[rbp]                 ; push rbp     
+    mov r11, r14                    ; r11= number of args
+    add r11, 5                      ; r11 = number of args+ 5 
+    mov rdi, qword [rbp + 3*8]      ; rdi = num of args
+    SHIFT_FRAMESKI r11              ; shift frame r11
 tuli:
-    add r15,5
-    shl r15,3
-    add rsp,r15
-    CLOSURE_CODE rsi,rdi
+    add rdi,5                       ; rsp = rsp + numberof args +40
+    shl rdi,3
+    add rsp,rdi                     
+    CLOSURE_CODE r9,r10             ; call closure code macro 
     pop rbp
-    jmp rsi
+    jmp r9
+    
+    
+    
+    
+    
+%macro SHIFT_FRAMESKI 1 ; %1 = size of frame (not constant)
+	push r14                                ; save all registers in use
+	push rdx
+	push r9
+	push rax
+	mov rax, qword [rbp+3*WORD_SIZE]        ; point to number of args 
+	add rax, 5                              ; add 5 for the other elements
+	mov r9,1                                ; assign i 1
+	mov rdx,0                               ; loop counter instead of repeat
+%%frame_loop:
+	cmp rdx ,%1                             ; check if done shifting
+    je %%end_frame_loop                     ; if done jmp to the end
+	dec rax                                 ; decrease the counter of elements to shift
+	shl r9,3
+	neg r9                                  ; minus i*8
+	mov r14, qword[rbp+r9]                  ; shift
+	mov [rbp+WORD_SIZE*rax], r14            ; shift
+	neg r9                                  ; fix r9
+	shr r9, 3                               ; fix r9
+    inc r9                                  ; assign i i+1                            
+	inc rdx                                 ; inc counter 
+	jmp %%frame_loop
+
+%%end_frame_loop:
+	pop rax                                 ; pop all registers in use
+	pop r9
+	pop rdx
+	pop r14
+%endmacro
