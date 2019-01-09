@@ -3,9 +3,7 @@
 
 module type CODE_GEN = sig
   val make_consts_tbl : expr' list -> (constant * int * string) list
-  (*  val make_consts_tbl : expr' list -> (constant * ('a * string) list*)
   val make_fvars_tbl : expr' list -> (string * int) list
-  (*  val make_fvars_tbl : expr' list -> (string * 'a) list *)
   val generate : (constant * int * string) list -> (string * int) list -> expr' -> string
 end;;
 
@@ -24,7 +22,6 @@ module Code_Gen : CODE_GEN = struct
    |Const'(e) -> (match e with
       | Void -> sexpr_list @ [] @ (collect_all_sexprs others sexpr_list)
       | Sexpr(e) -> sexpr_list @ handle_const e sexpr_list) @ (collect_all_sexprs others sexpr_list)
-  (* | Const'(e) -> sexpr_list @ [e] @ (collect_all_sexprs others sexpr_list) (*verify order *) *)
   | If' (testExp , thenExp , elseExp) -> collect_all_sexprs [testExp] sexpr_list @ collect_all_sexprs [thenExp] sexpr_list @ collect_all_sexprs [elseExp] sexpr_list @ (collect_all_sexprs others sexpr_list) 
   | Seq'(expr_list) ->  collect_all_sexprs expr_list sexpr_list @ (collect_all_sexprs others sexpr_list)  
   | Set'(name , value) -> collect_all_sexprs [name] sexpr_list @ collect_all_sexprs [value] sexpr_list @ (collect_all_sexprs others sexpr_list) 
@@ -48,33 +45,23 @@ module Code_Gen : CODE_GEN = struct
 
   and handle_const e sexpr_list = match e with
     | Nil-> []
+    | Vector (elements) -> (List.flatten( List.map (fun (elem )-> handle_const elem sexpr_list) elements))@ [Sexpr(Vector elements)]
+    | Pair (first ,second) ->(handle_const first sexpr_list )@(handle_const second sexpr_list)@[ Sexpr (Pair (first ,second))]
     | Bool (b) -> []
-    | Char (x) -> [Sexpr(Char x)]
-    | String (x) -> [Sexpr (String x)]
-    | Number (Int (x)) -> [Sexpr (Number (Int x))]
-    | Number (Float (x))-> [Sexpr (Number (Float x))]
-    | Symbol (x) -> [Sexpr (String x); Sexpr (Symbol x)]
-    | Pair (car ,cdr) ->(handle_const car sexpr_list ) @(handle_const cdr sexpr_list) @ [Sexpr (Pair (car ,cdr))]
-    | Vector (vector_list) -> (List.flatten( List.map (fun (elem )-> handle_const elem sexpr_list) vector_list))@ [Sexpr(Vector vector_list)]
-
+    | Symbol (sym) -> [Sexpr (String (sym)); Sexpr (Symbol (sym))]
+    | e -> [Sexpr(e)]
 ;;
 
 
-let rec remove_duplicates list1 list2 =
-  match list1 with 
-  | []-> list2
-  | _ -> (
-  let const = (List.hd list1) in
-  let list = list2@[const] in
-  if List.mem const list2 
-  then remove_duplicates (List.tl list1) list2
-  else remove_duplicates (List.tl list1) list)  ;;
+let rec remove_duplicate original new_list = 
+let length = List.length original in
+if length = 0 then  new_list
+else 
+let head = (List.hd original) in
+let tail =(List.tl original) in
+if List.mem head new_list then remove_duplicate tail new_list 
+else  remove_duplicate tail (new_list @ [head]);;
 
-
- let add_one  counter = 
- let getCounter = !counter in
- let () = incr counter in 
-    getCounter;;
 
 let isEqual_constant e1 e2=
   match e1, e2 with
@@ -94,7 +81,6 @@ let rec build_topolig_list constant_set =  match constant_set with
   | Sexpr(rest) as const_rest -> [const_rest] @ build_topolig_list others )
 
 and handle_vector sexpr_list = 
-(* List.fold_right handle_single_vector_elem sexpr_list *)
 let tmp = List.map (fun(e) -> build_topolig_list [Sexpr(e)] )sexpr_list in
 List.flatten tmp;;
 
@@ -129,11 +115,11 @@ let get_offset_fvars fvars_table = match fvars_table with
        last_offset;;
 
 let ascii_string string =
-let list = string_to_list string in
-let chin = List.map Char.code list in
-let asc_list = List.map string_of_int chin in
-let ans = String.concat "," asc_list in
+let ascii_code = List.map Char.code (string_to_list string) in 
+let ascii_list = List.map (fun(x) -> (string_of_int x )) ascii_code in
+let ans = String.concat "," ascii_list in
 ans;;
+
 
 
 let find_element e constant_table = 
@@ -154,7 +140,7 @@ let rec get_represent elem constant_table= match elem with
   | Sexpr(Char(e)) -> Printf.sprintf "MAKE_LITERAL_CHAR(%d)" (Char.code e)
   | Sexpr(Number(Int(e))) -> "MAKE_LITERAL_INT(" ^ (string_of_int e) ^ ")"
   | Sexpr(Number(Float(e))) -> "MAKE_LITERAL_FLOAT(" ^(string_of_float e) ^ ")"
-  | Sexpr(Symbol (e) ) ->  "MAKE_LITERAL_SYMBOL(const_tbl+" ^ (find_element (String(e)) constant_table) ^  ")"                             (*implement this*)
+  | Sexpr(Symbol (e) ) ->  "MAKE_LITERAL_SYMBOL(const_tbl+" ^ (find_element (String(e)) constant_table) ^  ")"                             
   | Sexpr(String (e)) -> "MAKE_LITERAL_STRING " ^ (ascii_string e) ^ ""
   | Sexpr(Pair (car,cdr)) -> "MAKE_LITERAL_PAIR(const_tbl+" ^ (find_element car constant_table) ^ ",const_tbl+" ^ (find_element cdr constant_table) ^ ")"
   | Sexpr(Vector (sexprs_list))->
@@ -197,7 +183,7 @@ let rec create_const_table list constant_table= match list with
 
   and type_of_var e fvar_list= match e with
   | [VarBound(name, major,minor)] -> [] 
-  | [VarParam(name, minor)] -> (*fvar_list @ [name]*) [] 
+  | [VarParam(name, minor)] ->  [] 
   | [VarFree(name)] -> fvar_list @ [name] 
   | _ -> []
 ;;
@@ -219,10 +205,10 @@ init_basics @ list;;
 
   let make_consts_tbl asts = 
   let constants_list = collect_all_sexprs asts [] in
-  let constants_set  = remove_duplicates constants_list [] in
+  let constants_set  = remove_duplicate constants_list [] in
   let expanded_list = build_topolig_list constants_set in
   let add_basics_to_const_list = add_basics expanded_list in
-  let no_dups_list = remove_duplicates add_basics_to_const_list [] in
+  let no_dups_list = remove_duplicate add_basics_to_const_list [] in
   create_const_table no_dups_list [];; 
   
 
@@ -231,11 +217,10 @@ init_basics @ list;;
 
   let make_fvars_tbl asts = 
   let fvar_list = collect_all_fvars asts [] in
-  let fvar_set = remove_duplicates fvar_list [] in 
+  let fvar_set = remove_duplicate fvar_list [] in 
   init_fvars @ (create_fvar_table fvar_set 34)
   ;;
     
-
 
 
 let rec addressInConstTable constant_table find_me= match constant_table with
@@ -257,7 +242,6 @@ let rec get_param_names_as_string params = match params with
 
 
 let random_suffix x =
-(*let () = Random.self_init() in*)
 let bound =1073741823 in
  string_of_int(Random.int bound);;
 
@@ -268,9 +252,8 @@ let bound =1073741823 in
   | Var'(VarFree(str)) -> let address = addressInFvarTable fvars str in
                 "mov rax, qword [fvar_tbl+" ^ string_of_int address ^"*WORD_SIZE]"
   | Var'(VarParam (str , minor)) -> "
-  mov r10, (4 + "^string_of_int minor^")*WORD_SIZE     ;                          // RETURN IT
-  mov rax, qword [rbp + r10]                              ;                      // RETURN IT
-; mov rax, qword [rbp +8 *(4+"^string_of_int minor^")] 
+  mov r10, (4 + "^string_of_int minor^")*WORD_SIZE    
+  mov rax, qword [rbp + r10]                              
  
  "
   | Var'(VarBound (str ,major, minor)) ->"
@@ -284,9 +267,6 @@ let bound =1073741823 in
     mov qword[rdi], rax
     mov rax,rdi
    " 
-   (*  /////////////// check if need to implement generate to var parmam inside the box
-  and then it comes back in rax, so after u didi genreate append malloc array (size 1 = size 8)  
-  put the address inside the array*)
   
   | BoxGet'(((v)) as vari)-> (generate_handle consts fvars (Var'(vari)) env previous_arg_number lambda_depth params_so_far) ^ "\n mov rax, qword [rax]"
   | BoxSet'((v) as vari ,value) -> 
@@ -509,32 +489,26 @@ let bound =1073741823 in
             code
    | Applic' (proc , arg_list) -> 
           let magic = "
-          ; mov r10,SOB_NIL_ADDRESS ; MAGIC PARAM - NULL?
           push SOB_NIL_ADDRESS  
           " in
           let rev = List.rev arg_list in
           let args_text = gen_map rev "\n push rax \n" consts fvars env  previous_arg_number lambda_depth params_so_far in
           let args_and_length = args_text ^ "\n push "^ string_of_int (List.length arg_list)^" \n" in
-
-          let checkType = 
+          let proc_text = generate_handle consts fvars proc env previous_arg_number lambda_depth params_so_far in
+          let with_proc = args_and_length ^ proc_text in                
+          magic^with_proc^ 
           "\n cmp byte[rax],  T_CLOSURE
-          jne invalid     " in
-          let envAndCode = "
+          jne invalid           
           CLOSURE_ENV rbx, rax
           push rbx
           CLOSURE_CODE rax, rax 
-          call rax \n" in
-          let setsRsp = "
+          call rax \n 
           add rsp, 8*1        ; pop env
           pop rbx             ; pop arg count
           shl rbx, 3          ; rbx = rbx * 8
           add rsp, rbx        ; pop args
           add rsp , 8     
-          " in
-          let proc_text = generate_handle consts fvars proc env previous_arg_number lambda_depth params_so_far in
-          let with_proc = args_and_length ^ proc_text in
-          let assembly_code= checkType ^ envAndCode ^ setsRsp in
-          magic^with_proc ^ assembly_code 
+          "  
   
           | ApplicTP'(proc , arg_list) ->
           let magic = "\n;TP \n push qword SOB_NIL_ADDRESS  \n" in
@@ -542,30 +516,29 @@ let bound =1073741823 in
           let args_text = gen_map rev "\n push rax \n" consts fvars env   previous_arg_number lambda_depth params_so_far in
           let post_args = args_text ^ "\n push "^ string_of_int (List.length arg_list)^" \n" in
           let shiftFrameArg = string_of_int ((List.length arg_list)+5) in
-         let checkType = 
+          let proc_text = generate_handle consts fvars proc env  previous_arg_number lambda_depth params_so_far in
+          let with_proc = post_args ^ proc_text in  
+          magic^with_proc ^ 
           "\n cmp byte[rax],  T_CLOSURE
-          jne invalid     " in
-          let push_env = " 
+          jne invalid   
           CLOSURE_ENV rbx, rax
-          push rbx \n" in
-          let handleRbp = "
-          push qword [rbp + 8]                     
+          push rbx 
+          mov r14, rbp
+          add r14, 8
+          push qword [r14]
           mov r14, qword [rbp]                       ;;;;;;;;; TP ;;;;;;;;;;;;;;
-          mov r9, qword[rbp + 3*WORD_SIZE] \n" in
-          let shift_frame = "
-          \nSHIFT_FRAME "^ shiftFrameArg ^"   ;;;checkif supposed to be 4 or 5" in
-          let setRbp =
+          mov r8, 3
+          shl r8, 3
+          add r8, rbp
+          mov r9, qword[r8]
+          SHIFT_FRAME "^ shiftFrameArg ^   
           "\nadd r9,5
           shl r9, 3     
           add rsp, r9
-          mov rbp, r14 \n" in                            
-          let applicCode = "CLOSURE_CODE r12, rax 
+          mov rbp, r14 \n                            
+          CLOSURE_CODE r12, rax 
           jmp r12
-          " in
-          let proc_text = generate_handle consts fvars proc env  previous_arg_number lambda_depth params_so_far in
-          let with_proc = post_args ^ proc_text in   
-          let assembly_code= checkType ^push_env^ handleRbp ^ shift_frame^ setRbp^applicCode in     
-          magic^with_proc ^ assembly_code
+          "     
 |_->""
 
   and gen_map list code_to_write consts fvars env   previous_arg_number lambda_depth params_so_far = 
@@ -573,7 +546,7 @@ let bound =1073741823 in
   (list_to_string mapped) ;; 
 
    let generate consts fvars e =
-    (* let counter : int ref = ref 0 in *)
    generate_handle consts fvars e 0 0 0 0 ;;
 
 end;;
+
