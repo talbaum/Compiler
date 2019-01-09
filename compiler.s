@@ -106,34 +106,35 @@
 
 
 %macro SHIFT_FRAMESKI 1 ; %1 = size of frame (not constant)
-	push r8
-	push r10
+	push r14                                ; save all registers in use
+	push rdx
 	push r9
 	push rax
-	mov rax, qword [rbp+3*WORD_SIZE]
-	add rax, 5
-	mov r9,1
-	mov r10,0
+	mov rax, qword [rbp+3*WORD_SIZE]        ; point to number of args 
+	add rax, 5                              ; add 5 for the other elements
+	mov r9,1                                ; assign i 1
+	mov rdx,0                               ; loop counter instead of repeat
 %%frame_loop:
-	cmp r10 ,%1
-	je %%end_frame_loop
-	dec rax
+	cmp rdx ,%1                             ; check if done shifting
+    je %%end_frame_loop                     ; if done jmp to the end
+	dec rax                                 ; decrease the counter of elements to shift
 	shl r9,3
-	neg r9
-	mov r8, qword[rbp+r9]
-	mov [rbp+WORD_SIZE*rax], r8
-	neg r9
-	shr r9, 3
-	inc r9
-	inc r10
+	neg r9                                  ; minus i*8
+	mov r14, qword[rbp+r9]                  ; shift
+	mov [rbp+WORD_SIZE*rax], r14            ; shift
+	neg r9                                  ; fix r9
+	shr r9, 3                               ; fix r9
+    inc r9                                  ; assign i i+1                            
+	inc rdx                                 ; inc counter 
 	jmp %%frame_loop
 
 %%end_frame_loop:
-	pop rax
+	pop rax                                 ; pop all registers in use
 	pop r9
-	pop r10
-	pop r8
+	pop rdx
+	pop r14
 %endmacro
+
 
 ; Creates a short SOB with the
 ; value %2
