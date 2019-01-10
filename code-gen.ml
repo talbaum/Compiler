@@ -260,12 +260,13 @@ let bound =1073741823 in
   mov rax, qword [rbp + 2 * WORD_SIZE]
   mov rax, qword [rax + "^string_of_int major^"*WORD_SIZE]
   mov rax, qword [rax + "^string_of_int minor^"*WORD_SIZE]"
-  | Box' (v) ->  "
-   MALLOC rdi, 8 \n"^
-   (generate_handle consts fvars (Var'(v)) env  previous_arg_number lambda_depth params_so_far )
+  | Box' (v) -> let as_var =(Var'(v)) in
+ "
+   MALLOC r15, 8 \n"^
+   (generate_handle consts fvars as_var env  previous_arg_number lambda_depth params_so_far )
     ^"
-    mov qword[rdi], rax
-    mov rax,rdi
+    mov qword[r15], rax
+    mov rax,r15
    " 
   
   | BoxGet'(((v)) as vari)-> (generate_handle consts fvars (Var'(vari)) env previous_arg_number lambda_depth params_so_far) ^ "\n mov rax, qword [rax]"
@@ -549,4 +550,3 @@ let bound =1073741823 in
    generate_handle consts fvars e 0 0 0 0 ;;
 
 end;;
-
