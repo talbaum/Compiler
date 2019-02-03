@@ -1,4 +1,4 @@
-(* semanticTest.ml
+(* semanticTest.ml test
  * Tests for semantic-analyser.ml
  * Programmer: Nitsan Soffair and Amir Abramovich, 2018
  *)
